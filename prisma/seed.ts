@@ -107,115 +107,128 @@ async function main() {
     // =========================================
 
     const actHermes = [
-        // DEPORTES
-        { name: "Basquetbol", cat: "deportes", desc: "Clases de basquetbol por niveles de edad", schedules: [
-            { min_age: 4, max_age: 7, label: "4 a 7 años", days: ["tuesday", "thursday"], time: "16:00-17:00" },
-            { min_age: 8, max_age: 13, label: "8 a 13 años", days: ["tuesday", "thursday"], time: "17:00-18:00" }
-        ]},
-        { name: "Fútbol", cat: "deportes", desc: "Entrenamiento de fútbol", schedules: [
-            { min_age: 4, max_age: 7, label: "4 a 7 años", days: ["monday", "wednesday"], time: "16:00-17:00" },
-            { min_age: 8, max_age: 13, label: "8 a 13 años", days: ["monday", "wednesday"], time: "17:00-18:00" }
-        ]},
-        { name: "Tenis", cat: "deportes", desc: "Clases de tenis en cancha", schedules: [
-            { min_age: 6, max_age: 12, label: "6 a 12 años", days: ["tuesday", "thursday"], time: "15:00-16:00" },
-            { min_age: 13, label: "13 años en adelante", days: ["tuesday", "thursday"], time: "16:00-17:00" },
-            { min_age: 18, label: "Adultos", days: ["monday", "wednesday", "friday"], time: "08:00-09:00" }
-        ]},
-        { name: "Pádel", cat: "deportes", desc: "Clases y clínicas de pádel", schedules: [
-            { min_age: 12, label: "12 años en adelante", days: ["monday", "wednesday"], time: "17:00-18:00" },
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "09:00-10:00" }
-        ]},
-
-        // ACUÁTICAS
-        { name: "Natación", cat: "acuaticas", desc: "Clases de natación todos los niveles", schedules: [
-            { min_age: 3, max_age: 5, label: "3 a 5 años", days: ["monday", "wednesday", "friday"], time: "15:00-16:00" },
-            { min_age: 6, max_age: 12, label: "6 a 12 años", days: ["monday", "wednesday", "friday"], time: "16:00-17:00" },
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "07:00-08:00" }
-        ]},
-        { name: "Clavados", cat: "acuaticas", desc: "Clase de clavados en fosa", schedules: [
-            { label: "General", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-18:00" }
-        ]},
-        { name: "Waterpolo", cat: "acuaticas", desc: "Entrenamiento de waterpolo", schedules: [
-            { min_age: 10, label: "10 años en adelante", days: ["tuesday", "thursday"], time: "17:00-18:30" }
-        ]},
-
-        // ARTES MARCIALES
-        { name: "Box", cat: "artes_marciales", desc: "Clases de box", schedules: [
-            { min_age: 8, max_age: 11, label: "8 a 11 años", days: ["monday", "wednesday"], time: "17:00-18:00" },
-            { min_age: 12, label: "12 años en adelante", days: ["monday", "wednesday"], time: "18:00-19:00" }
-        ]},
-        { name: "Nippon Kempo", cat: "artes_marciales", desc: "Arte marcial japonés", schedules: [
-            { min_age: 6, label: "6 años en adelante", days: ["tuesday", "thursday"], time: "17:00-18:00" },
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "18:00-19:00" }
-        ]},
-        { name: "Karate", cat: "artes_marciales", desc: "Clases de karate", schedules: [
-            { min_age: 5, max_age: 12, label: "5 a 12 años", days: ["monday", "wednesday", "friday"], time: "16:00-17:00" },
-            { min_age: 13, label: "13 años en adelante", days: ["monday", "wednesday", "friday"], time: "17:00-18:00" }
-        ]},
-
-        // DANZA
-        { name: "Ballet", cat: "danza", desc: "Clases de ballet clásico", schedules: [
-            { min_age: 3, max_age: 7, label: "3 a 7 años", days: ["tuesday", "thursday"], time: "16:00-17:00" },
-            { min_age: 8, max_age: 14, label: "8 a 14 años", days: ["tuesday", "thursday"], time: "17:00-18:00" }
-        ]},
-        { name: "Jazz", cat: "danza", desc: "Clases de jazz dance", schedules: [
-            { min_age: 8, label: "8 años en adelante", days: ["monday", "wednesday"], time: "17:00-18:00" },
-            { min_age: 18, label: "Adultos", days: ["monday", "wednesday"], time: "19:00-20:00" }
-        ]},
-        { name: "Danza Árabe", cat: "danza", desc: "Danza tradicional árabe", schedules: [
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "10:00-11:00" }
-        ]},
-
-        // BIENESTAR / FITNESS
-        { name: "Yoga", cat: "bienestar", desc: "Clases de yoga para adultos", schedules: [
-            { min_age: 18, label: "Adultos", days: ["monday", "wednesday", "friday"], time: "09:00-10:00" }
-        ]},
-        { name: "Pilates", cat: "bienestar", desc: "Clases de pilates mat", schedules: [
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "09:00-10:00" }
-        ]},
-        { name: "Pilates Silver", cat: "bienestar", desc: "Pilates para adultos mayores", schedules: [
-            { min_age: 50, label: "Adultos mayores", days: ["monday", "wednesday", "friday"], time: "10:00-11:00" }
-        ]},
-        { name: "TRX", cat: "bienestar", desc: "Entrenamiento en suspensión TRX", schedules: [
-            { min_age: 16, label: "16 años en adelante", days: ["monday", "wednesday", "friday"], time: "07:00-08:00" },
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "18:00-19:00" }
-        ]},
-
-        // CULTURALES
-        { name: "Clases de Pintura", cat: "cultural", desc: "Pintura para adultos y niños", schedules: [
-            { min_age: 6, max_age: 12, label: "Niños 6-12", days: ["saturday"], time: "10:00-12:00" },
-            { min_age: 18, label: "Adultos", days: ["wednesday"], time: "10:00-12:00" }
-        ]},
-        { name: "Círculo de Lectura", cat: "cultural", desc: "Club de lectura para socios", schedules: [
-            { min_age: 18, label: "Adultos", days: ["thursday"], time: "11:00-12:30" }
-        ]},
-        { name: "Clases de Árabe", cat: "cultural", desc: "Clases de árabe coloquial", schedules: [
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday"], time: "11:00-12:00" }
-        ]},
+        {
+            name: "Academia de Danza", cat: "danza", desc: "Academia de danza y ballet", schedules: [
+                { min_age: 4, max_age: 10, label: "4 a 10 años", days: ["tuesday", "thursday"], time: "16:00-18:00" }
+            ]
+        },
+        {
+            name: "Aqua Funcional", cat: "acuaticas", desc: "Acondicionamiento en alberca", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["monday", "wednesday", "friday"], time: "10:00-12:00" }
+            ]
+        },
+        {
+            name: "Basquetbol", cat: "deportes", desc: "Entrenamientos guiados de basquetbol", schedules: [
+                { min_age: 4, max_age: 13, label: "4 a 13 años", days: ["tuesday", "thursday"], time: "16:00-18:00" }
+            ]
+        },
+        {
+            name: "Box", cat: "artes_marciales", desc: "Técnica y entrenamiento de box", schedules: [
+                { min_age: 8, label: "8 años en adelante", days: ["monday", "wednesday", "friday"], time: "17:00-19:00" }
+            ]
+        },
+        {
+            name: "Clavados", cat: "acuaticas", desc: "Iniciación y práctica en fosa", schedules: [
+                { min_age: 6, label: "Clase general", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-18:00" }
+            ]
+        },
+        {
+            name: "Gimnasio de Pesas", cat: "bienestar", desc: "Acondicionamiento físico general", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["monday", "tuesday", "wednesday", "thursday", "friday"], time: "06:00-22:00" },
+                { min_age: 15, label: "Sábados", days: ["saturday"], time: "08:00-16:00" },
+                { min_age: 15, label: "Domingos", days: ["sunday"], time: "08:00-14:00" }
+            ]
+        },
+        {
+            name: "Natación", cat: "acuaticas", desc: "Clínicas y grupos de natación", schedules: [
+                { min_age: 18, label: "Adultos", days: ["monday", "wednesday", "friday"], time: "06:00-14:00" },
+                { min_age: 6, max_age: 15, label: "Infantiles", days: ["monday", "wednesday", "friday"], time: "16:00-19:00" }
+            ]
+        },
+        {
+            name: "Pilates Reformer", cat: "bienestar", desc: "Pilates en cama especial", schedules: [
+                { min_age: 15, label: "Mayores de 15 años AM", days: ["monday", "wednesday", "friday"], time: "07:00-10:00" },
+                { min_age: 15, label: "Mayores de 15 años PM", days: ["monday", "wednesday"], time: "17:00-19:00" }
+            ]
+        },
+        {
+            name: "Spinning", cat: "bienestar", desc: "Ciclismo indoor y cardio", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["monday", "wednesday", "friday"], time: "07:00-09:00" }
+            ]
+        },
+        {
+            name: "Tenis", cat: "deportes", desc: "Clínicas por nivel y categoría", schedules: [
+                { min_age: 18, label: "Caballeros", days: ["monday"], time: "07:00-09:00" },
+                { min_age: 18, label: "Damas", days: ["monday"], time: "09:00-11:00" },
+                { min_age: 6, max_age: 16, label: "Infantiles y juveniles", days: ["thursday"], time: "16:00-18:00" }
+            ]
+        },
+        {
+            name: "Yoga", cat: "bienestar", desc: "Hatha y Vinyasa Yoga", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["tuesday", "thursday"], time: "08:30-10:00" }
+            ]
+        }
     ];
 
     const actFredy = [
-        { name: "Gimnasio Funcional", cat: "deportes", desc: "Entrenamiento funcional", schedules: [
-            { min_age: 18, label: "Adultos", days: ["monday", "wednesday", "friday"], time: "07:00-08:00" },
-            { min_age: 18, label: "Adultos PM", days: ["monday", "wednesday", "friday"], time: "18:00-19:00" }
-        ]},
-        { name: "Tenis Clínicas", cat: "deportes", desc: "Clínicas de tenis grupales", schedules: [
-            { label: "General", days: ["saturday", "sunday"], time: "08:00-10:00" }
-        ]},
-        { name: "Yoga Vinyasa", cat: "bienestar", desc: "Yoga estilo vinyasa flow", schedules: [
-            { min_age: 16, label: "Jóvenes y Adultos", days: ["tuesday", "thursday"], time: "19:00-20:00" }
-        ]},
-        { name: "Natación", cat: "acuaticas", desc: "Clases de natación", schedules: [
-            { min_age: 4, max_age: 8, label: "4 a 8 años", days: ["monday", "wednesday"], time: "16:00-17:00" },
-            { min_age: 18, label: "Adultos", days: ["tuesday", "thursday", "saturday"], time: "07:00-08:00" }
-        ]},
-        { name: "CrossFit", cat: "deportes", desc: "Entrenamiento de alta intensidad", schedules: [
-            { min_age: 16, label: "16 años en adelante", days: ["monday", "tuesday", "wednesday", "thursday", "friday"], time: "06:30-07:30" }
-        ]},
-        { name: "Pádel", cat: "deportes", desc: "Clases de pádel", schedules: [
-            { min_age: 12, label: "12 años en adelante", days: ["tuesday", "thursday"], time: "17:00-18:00" },
-            { min_age: 18, label: "Adultos", days: ["saturday"], time: "09:00-10:00" }
-        ]},
+        {
+            name: "Acondicionamiento Físico", cat: "bienestar", desc: "Ejercicios coordinados", schedules: [
+                { min_age: 6, max_age: 14, label: "Niños", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-18:00" }
+            ]
+        },
+        {
+            name: "Aquaerobics", cat: "acuaticas", desc: "Bajo impacto en alberca", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["monday", "tuesday", "wednesday", "thursday"], time: "09:30-10:30" }
+            ]
+        },
+        {
+            name: "Aquafitness", cat: "acuaticas", desc: "Alta intensidad en agua", schedules: [
+                { min_age: 18, label: "Adultos AM", days: ["monday", "wednesday", "friday"], time: "10:30-11:30" },
+                { min_age: 18, label: "Adultos PM", days: ["monday", "wednesday", "friday"], time: "19:00-20:00" }
+            ]
+        },
+        {
+            name: "Barre", cat: "bienestar", desc: "Ballet, pilates y yoga integrados", schedules: [
+                { min_age: 12, label: "Adolescentes y adultos LMV", days: ["monday", "wednesday", "friday"], time: "10:30-11:30" },
+                { min_age: 12, label: "Adolescentes y adultos MJ", days: ["tuesday", "thursday"], time: "09:30-10:30" }
+            ]
+        },
+        {
+            name: "Be Cross Fit", cat: "deportes", desc: "Fuerza y acondicionamiento total", schedules: [
+                { min_age: 15, label: "Mayores de 15 años AM", days: ["monday", "tuesday", "wednesday", "thursday", "friday"], time: "07:00-09:00" },
+                { min_age: 15, label: "Mayores de 15 años PM", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-19:00" }
+            ]
+        },
+        {
+            name: "Futbol", cat: "deportes", desc: "Canchas al aire libre", schedules: [
+                { min_age: 5, max_age: 15, label: "Niños", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-19:00" },
+                { min_age: 12, label: "Femenil L/M", days: ["monday", "wednesday"], time: "16:00-17:30" },
+                { min_age: 12, label: "Femenil M/J", days: ["tuesday", "thursday"], time: "17:00-18:30" }
+            ]
+        },
+        {
+            name: "Gimnasio de Cardio", cat: "bienestar", desc: "Caminadoras, elípticas y escaladoras", schedules: [
+                { min_age: 15, label: "Mayores de 15 años", days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], time: "06:00-22:00" }
+            ]
+        },
+        {
+            name: "Pádel", cat: "deportes", desc: "Deporte de raqueta", schedules: [
+                { min_age: 6, max_age: 15, label: "Niños", days: ["monday", "tuesday", "wednesday", "thursday"], time: "16:00-18:00" },
+                { min_age: 18, label: "Adultos AM", days: ["monday", "tuesday", "wednesday", "thursday"], time: "09:00-11:00" }
+            ]
+        },
+        {
+            name: "Pilates de Cama", cat: "bienestar", desc: "Reformer para rehabilitación y tono", schedules: [
+                { min_age: 15, label: "Mayores de 15 años LMV", days: ["monday", "wednesday", "friday"], time: "06:30-09:30" },
+                { min_age: 15, label: "Mayores de 15 años MJ", days: ["tuesday", "thursday"], time: "07:30-09:30" }
+            ]
+        },
+        {
+            name: "Spinning", cat: "bienestar", desc: "Clase intensa de bicicleta estática", schedules: [
+                { min_age: 15, label: "Mayores de 15 LMV", days: ["monday", "wednesday", "friday"], time: "06:30-09:30" },
+                { min_age: 15, label: "Mayores de 15 MJ", days: ["tuesday", "thursday"], time: "08:30-10:30" }
+            ]
+        }
     ];
 
     async function createActivities(unitId: string, activities: any[]) {
