@@ -1,0 +1,441 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url = "file:./dev.db"
+}
+
+// ---------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ---------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------
+
+model Unit {
+  id              String   @id @default(uuid())
+  name            String
+  short_name      String
+  code            String   @unique
+  address         String?
+  city            String?
+  zip_code        String?
+  phone           String?
+  email           String?
+  latitude        Decimal?
+  longitude       Decimal?
+  operating_hours String?
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+
+  activities   Activity[]
+  staff        Staff[]
+  services     Service[]
+  lockers      Locker[]
+  resources    Resource[]
+  reservations Reservation[] // for units that hold reservations
+}
+
+model SystemConfig {
+  id                          String  @id @default(uuid())
+  maintenance_grace_days      Int     @default(10)
+  reservation_advance_days    Int     @default(14)
+  reservation_same_day        Boolean @default(false)
+  max_active_reservations_cat Int     @default(3)
+  cancellation_window_default Int     @default(120)
+  late_cancel_charge_pct      Decimal @default(0.50)
+  no_show_charge_pct          Decimal @default(1.00)
+  buffer_between_appointments Int     @default(10)
+  locker_preference_hours     Int     @default(48)
+  settlement_frequency        String  @default("biweekly")
+  beneficiary_max_age         Int     @default(25)
+  club_hours                  String?
+  peak_hours                  String?
+}
+
+model Membership {
+  id                String           @id @default(uuid())
+  member_number     Int              @unique
+  tier String @default("basico")
+  status String @default("activa")
+  join_date         DateTime
+  monthly_fee       Decimal
+  next_payment_date DateTime?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  profiles          MemberProfile[]
+  maintenance_bills MaintenanceBilling[]
+  payments          Payment[]
+  locker_rentals    LockerRental[]
+  reservations      Reservation[]
+  enrollments       ActivityEnrollment[]
+}
+
+model MemberProfile {
+  id                String        @id @default(uuid())
+  membership_id     String
+  role String
+  profile_status String @default("activo")
+  first_name        String
+  last_name         String
+  email             String?       @unique
+  phone             String?
+  date_of_birth     DateTime
+  is_minor          Boolean       @default(false)
+  gender String?
+  photo_url         String?
+  palm_biometric_id String?
+  pin_code          String?
+  permissions       String
+  is_active         Boolean       @default(true)
+  auth_user_id      String?       @unique
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  membership Membership @relation(fields: [membership_id], references: [id])
+
+  // Relationships where this profile plays a role
+  reservations          Reservation[] @relation("ProfileReservations")
+  reservations_booked   Reservation[] @relation("BookedByReservations")
+  reservations_approved Reservation[] @relation("ApprovedByReservations")
+
+  payments       Payment[]
+  locker_rentals LockerRental[]
+  enrollments    ActivityEnrollment[]
+}
+
+model Staff {
+  id                String         @id @default(uuid())
+  unit_id           String
+  name              String
+  role String
+  employment_type String
+  commission_rate   Decimal?
+  fixed_rent        Decimal?
+  schedule_template String?
+  is_active         Boolean        @default(true)
+  phone             String?
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+
+  unit         Unit                    @relation(fields: [unit_id], references: [id])
+  services     StaffService[]
+  reservations Reservation[]           @relation("StaffReservations")
+  settlements  StaffSettlement[]
+  overrides    StaffScheduleOverride[]
+  activities   Activity[]              @relation("ActivityInstructor")
+}
+
+model Service {
+  id                  String          @id @default(uuid())
+  unit_id             String
+  name                String
+  category String
+  subcategory         String?
+  duration_minutes    Int
+  price               Decimal         @default(0)
+  requires_staff      Boolean
+  max_concurrent      Int?
+  resource_id         String? // can link to a Resource code
+  is_active           Boolean         @default(true)
+  cancellation_window Int             @default(120)
+  no_show_fee         Decimal         @default(0)
+
+  unit         Unit           @relation(fields: [unit_id], references: [id])
+  staff        StaffService[]
+  reservations Reservation[]
+}
+
+model StaffService {
+  staff_id   String
+  service_id String
+
+  staff   Staff   @relation(fields: [staff_id], references: [id])
+  service Service @relation(fields: [service_id], references: [id])
+
+  @@id([staff_id, service_id])
+}
+
+model Resource {
+  id        String  @id @default(uuid())
+  unit_id   String
+  code      String  @unique // e.g., "cancha_tenis_1"
+  name      String
+  type      String?
+  is_active Boolean @default(true)
+
+  unit Unit @relation(fields: [unit_id], references: [id])
+}
+
+model Reservation {
+  id            String            @id @default(uuid())
+  unit_id       String
+  profile_id    String
+  membership_id String
+  booked_by_id  String
+  service_id    String?
+  staff_id      String?
+  resource_id   String? // Reference to resource code
+  date          DateTime          
+  start_time    DateTime          
+  end_time      DateTime          
+  status String @default("pendiente")
+
+  // Aprobación familiar
+  requires_approval Boolean   @default(false)
+  approved_by_id    String?
+  approved_at       DateTime?
+
+  payment_status String @default("pendiente")
+  payment_id          String?
+  cancelled_at        DateTime?
+  cancellation_reason String?
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @updatedAt
+
+  unit        Unit           @relation(fields: [unit_id], references: [id])
+  profile     MemberProfile  @relation("ProfileReservations", fields: [profile_id], references: [id])
+  membership  Membership     @relation(fields: [membership_id], references: [id])
+  booked_by   MemberProfile  @relation("BookedByReservations", fields: [booked_by_id], references: [id])
+  approved_by MemberProfile? @relation("ApprovedByReservations", fields: [approved_by_id], references: [id])
+  service     Service?       @relation(fields: [service_id], references: [id])
+  staff       Staff?         @relation("StaffReservations", fields: [staff_id], references: [id])
+  payment     Payment?       @relation("ReservationPayment", fields: [payment_id], references: [id])
+}
+
+model Locker {
+  id         String          @id @default(uuid())
+  unit_id    String
+  number     String
+  zone String
+  floor      String?
+  size String
+  condition String @default("operativo")
+  created_at DateTime        @default(now())
+
+  unit    Unit           @relation(fields: [unit_id], references: [id])
+  rentals LockerRental[]
+
+  @@unique([unit_id, number])
+}
+
+model LockerRental {
+  id            String             @id @default(uuid())
+  locker_id     String
+  membership_id String
+  profile_id    String
+  quarter       String // e.g. "2026-Q1"
+  start_date    DateTime           
+  end_date      DateTime           
+  price         Decimal
+  status String @default("activa")
+  auto_renew    Boolean            @default(true)
+  payment_id    String?
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @updatedAt
+
+  locker     Locker        @relation(fields: [locker_id], references: [id])
+  membership Membership    @relation(fields: [membership_id], references: [id])
+  profile    MemberProfile @relation(fields: [profile_id], references: [id])
+  payment    Payment?      @relation("LockerPayment", fields: [payment_id], references: [id])
+
+  @@unique([locker_id, quarter])
+}
+
+model Payment {
+  id                  String         @id @default(uuid())
+  membership_id       String
+  profile_id          String?
+  type String
+  amount              Decimal
+  currency            String         @default("MXN")
+  method String?
+  status String @default("pendiente")
+  reference_id        String? // ID reservation, locker_rental, maintenance_billing
+  gateway_txn_id      String?
+  staff_settlement_id String?
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+
+  membership Membership       @relation(fields: [membership_id], references: [id])
+  profile    MemberProfile?   @relation(fields: [profile_id], references: [id])
+  settlement StaffSettlement? @relation(fields: [staff_settlement_id], references: [id])
+
+  // Reverse relations to the source
+  reservations      Reservation[]        @relation("ReservationPayment")
+  locker_rentals    LockerRental[]       @relation("LockerPayment")
+  maintenance_bills MaintenanceBilling[] @relation("MaintenancePayment")
+  enrollments       ActivityEnrollment[] @relation("EnrollmentPayment")
+}
+
+model MaintenanceBilling {
+  id             String            @id @default(uuid())
+  membership_id  String
+  period         String // e.g. "2026-03"
+  amount         Decimal
+  due_date       DateTime          
+  status String @default("pendiente")
+  grace_deadline DateTime?         
+  payment_id     String?
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+
+  membership Membership @relation(fields: [membership_id], references: [id])
+  payment    Payment?   @relation("MaintenancePayment", fields: [payment_id], references: [id])
+}
+
+model StaffSettlement {
+  id              String                @id @default(uuid())
+  staff_id        String
+  period_start    DateTime              
+  period_end      DateTime              
+  total_services  Int                   @default(0)
+  gross_revenue   Decimal               @default(0)
+  club_commission Decimal               @default(0)
+  staff_payout    Decimal               @default(0)
+  status String @default("pendiente")
+  paid_at         DateTime?
+  created_at      DateTime              @default(now())
+
+  staff    Staff     @relation(fields: [staff_id], references: [id])
+  payments Payment[]
+}
+
+model StaffScheduleOverride {
+  id           String       @id @default(uuid())
+  staff_id     String
+  date         DateTime     
+  type String
+  custom_start DateTime?    
+  custom_end   DateTime?    
+  reason       String?
+  created_at   DateTime     @default(now())
+
+  staff Staff @relation(fields: [staff_id], references: [id])
+}
+
+model Activity {
+  id                     String           @id @default(uuid())
+  unit_id                String
+  name                   String
+  category String
+  description            String?
+  min_age                Int?
+  max_age                Int?
+  min_age_months         Int?
+  max_age_months         Int?
+  age_label              String?
+  level                  String?
+  requires_enrollment    Boolean          @default(true)
+  max_capacity           Int?
+  price_monthly          Decimal?
+  included_in_membership Boolean          @default(true)
+  instructor_id          String?
+  location_detail        String?
+  is_active              Boolean          @default(true)
+  created_at             DateTime         @default(now())
+
+  unit        Unit                 @relation(fields: [unit_id], references: [id])
+  instructor  Staff?               @relation("ActivityInstructor", fields: [instructor_id], references: [id])
+  schedules   ActivitySchedule[]
+  enrollments ActivityEnrollment[]
+}
+
+model ActivitySchedule {
+  id          String    @id @default(uuid())
+  activity_id String
+  day_of_week String
+  start_time  String // Using String for "16:00" to easily parse instead of DateTime parsing hurdles
+  end_time    String
+  created_at  DateTime  @default(now())
+
+  activity Activity @relation(fields: [activity_id], references: [id])
+}
+
+model ActivityEnrollment {
+  id            String           @id @default(uuid())
+  activity_id   String
+  profile_id    String
+  membership_id String
+  status String @default("activa")
+  period        String?
+  payment_id    String?
+  enrolled_at   DateTime         @default(now())
+  created_at    DateTime         @default(now())
+
+  activity   Activity      @relation(fields: [activity_id], references: [id])
+  profile    MemberProfile @relation(fields: [profile_id], references: [id])
+  membership Membership    @relation(fields: [membership_id], references: [id])
+  payment    Payment?      @relation("EnrollmentPayment", fields: [payment_id], references: [id])
+}
+
+model Notification {
+  id             String              @id @default(uuid())
+  recipient_id   String
+  recipient_type String
+  channel String @default("push")
+  type           String
+  title          String
+  body           String
+  data           String?
+  status String @default("pending")
+  sent_at        DateTime?
+  created_at     DateTime            @default(now())
+}
