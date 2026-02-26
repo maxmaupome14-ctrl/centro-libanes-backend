@@ -1,56 +1,61 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
+import { requireAuth } from '../middleware/auth';
+import { checkSpendingLimit } from '../services/reservation.service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Simplified auth middleware — extracts profile from token
-const requireAuth = async (req: any, res: any, next: any) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-
-    const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token provided' });
-
-    try {
-        // Token format: "mock_jwt_token_PROFILE_ID" or just the profile ID
-        const profileId = token.replace('mock_jwt_token_', '');
-
-        const profile = await prisma.memberProfile.findUnique({
-            where: { id: profileId },
-            include: { membership: true },
-        });
-
-        if (!profile) {
-            // Might be a staff token — skip auth for staff
-            return res.status(401).json({ error: 'Invalid token — use member login' });
-        }
-
-        req.user = {
-            ...profile,
-            membership_id: profile.membership_id,
-        };
-        next();
-    } catch (e: any) {
-        return res.status(500).json({ error: 'Auth error: ' + e.message });
-    }
-};
-
-// GET /api/reservations/user
+// GET /api/reservations/user - upcoming reservations for current profile
 router.get('/user', requireAuth, async (req: any, res: any) => {
     try {
         const user = req.user;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         const reservations = await prisma.reservation.findMany({
             where: {
                 profile_id: user.id,
-                date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-                status: { in: ['confirmada', 'pendiente_aprobacion'] }
+                date: { gte: today },
+                status: { in: ['confirmada', 'pendiente', 'pendiente_aprobacion', 'en_curso'] }
             },
-            include: { service: true },
+            include: {
+                service: { select: { name: true, category: true, duration_minutes: true } },
+                unit: { select: { short_name: true } },
+            },
             orderBy: [{ date: 'asc' }, { start_time: 'asc' }],
-            take: 10,
+            take: 20,
         });
+
         return res.json(reservations);
+    } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+
+// GET /api/reservations/pending-approvals - for titular/conyugue
+router.get('/pending-approvals', requireAuth, async (req: any, res: any) => {
+    try {
+        const user = req.user;
+        const permissions = user.parsedPermissions;
+
+        if (!permissions.can_approve_reservations) {
+            return res.status(403).json({ error: 'No tienes permiso para ver aprobaciones' });
+        }
+
+        const pending = await prisma.reservation.findMany({
+            where: {
+                membership_id: user.membership_id,
+                status: 'pendiente_aprobacion',
+            },
+            include: {
+                profile: { select: { first_name: true, last_name: true, role: true } },
+                service: { select: { name: true, category: true } },
+                unit: { select: { short_name: true } },
+            },
+            orderBy: { created_at: 'desc' },
+        });
+
+        return res.json(pending);
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }
@@ -58,44 +63,97 @@ router.get('/user', requireAuth, async (req: any, res: any) => {
 
 // POST /api/reservations/book
 router.post('/book', requireAuth, async (req: any, res: any) => {
-    const { service_id, resource_id, date, start_time, end_time, price, unit_name } = req.body;
+    const { service_id, resource_id, date, start_time, end_time } = req.body;
     const user = req.user;
+    const permissions = user.parsedPermissions;
 
     if (!date || !start_time || !end_time) {
-        return res.status(400).json({ error: 'Missing date, start_time, or end_time' });
+        return res.status(400).json({ error: 'Faltan date, start_time o end_time' });
     }
 
     try {
-        // 1. Resolve unit_id from the service/resource or from the request
-        let resolvedUnitId: string | null = null;
-
+        // 1. Check permission based on service category
         if (service_id) {
-            // Look up the service to find unit_id
+            const svc = await prisma.service.findUnique({ where: { id: service_id } });
+            if (svc) {
+                const cat = svc.category;
+                if (cat === 'spa' && permissions.can_book_spa === false) {
+                    return res.status(403).json({ error: 'No tienes permiso para reservar spa' });
+                }
+                if (cat === 'barberia' && permissions.can_book_barberia === false) {
+                    return res.status(403).json({ error: 'No tienes permiso para reservar barbería' });
+                }
+            }
+        }
+        if (resource_id && permissions.can_book_deportes === false) {
+            return res.status(403).json({ error: 'No tienes permiso para reservar deportes' });
+        }
+
+        // 2. Check allowed hours for minors
+        if (permissions.allowed_hours_start && permissions.allowed_hours_end) {
+            const [startH] = start_time.split(':').map(Number);
+            const [allowStart] = permissions.allowed_hours_start.split(':').map(Number);
+            const [allowEnd] = permissions.allowed_hours_end.split(':').map(Number);
+
+            if (startH < allowStart || startH >= allowEnd) {
+                return res.status(403).json({
+                    error: `Solo puedes reservar entre ${permissions.allowed_hours_start} y ${permissions.allowed_hours_end}`
+                });
+            }
+        }
+
+        // 3. Check max active reservations
+        if (permissions.max_active_reservations) {
+            const activeCount = await prisma.reservation.count({
+                where: {
+                    profile_id: user.id,
+                    status: { in: ['confirmada', 'pendiente', 'pendiente_aprobacion'] },
+                    date: { gte: new Date() },
+                }
+            });
+
+            if (activeCount >= permissions.max_active_reservations) {
+                return res.status(403).json({
+                    error: `Máximo ${permissions.max_active_reservations} reservas activas permitidas`
+                });
+            }
+        }
+
+        // 4. Check spending limit
+        if (permissions.spending_limit_monthly != null) {
+            const svc = service_id
+                ? await prisma.service.findUnique({ where: { id: service_id } })
+                : null;
+            const price = svc ? Number(svc.price) : 0;
+            if (price > 0) {
+                await checkSpendingLimit(user.id, user.membership_id, price);
+            }
+        }
+
+        // 5. Resolve unit_id
+        let resolvedUnitId: string | null = null;
+        if (service_id) {
             const svc = await prisma.service.findUnique({ where: { id: service_id } });
             if (svc) resolvedUnitId = svc.unit_id;
         }
         if (!resolvedUnitId && resource_id) {
-            const res = await prisma.resource.findUnique({ where: { id: resource_id } });
-            if (res) resolvedUnitId = res.unit_id;
+            const resource = await prisma.resource.findUnique({ where: { id: resource_id } });
+            if (resource) resolvedUnitId = resource.unit_id;
+        }
+        if (!resolvedUnitId && service_id) {
+            const act = await prisma.activity.findUnique({ where: { id: service_id } });
+            if (act) resolvedUnitId = act.unit_id;
         }
         if (!resolvedUnitId) {
-            // Try to find from activity (since catalog returns activities too)
-            if (service_id) {
-                const act = await prisma.activity.findUnique({ where: { id: service_id } });
-                if (act) resolvedUnitId = act.unit_id;
-            }
-        }
-        if (!resolvedUnitId) {
-            // Fallback: get first unit
             const unit = await prisma.unit.findFirst();
             resolvedUnitId = unit?.id || '';
         }
 
-        // 2. Check if user is a minor (requires approval)
-        const isMinor = user.is_minor === true;
-        const initialStatus = isMinor ? 'pendiente_aprobacion' : 'confirmada';
+        // 6. Determine if approval is needed
+        const needsApproval = permissions.requires_approval === true;
+        const initialStatus = needsApproval ? 'pendiente_aprobacion' : 'confirmada';
 
-        // 3. Create Reservation
+        // 7. Create reservation
         const newReservation = await prisma.reservation.create({
             data: {
                 unit_id: resolvedUnitId,
@@ -108,14 +166,14 @@ router.post('/book', requireAuth, async (req: any, res: any) => {
                 start_time: new Date(`${date}T${start_time}:00`),
                 end_time: new Date(`${date}T${end_time}:00`),
                 status: initialStatus,
-                requires_approval: isMinor,
+                requires_approval: needsApproval,
             },
-            include: { service: true },
+            include: { service: true, unit: { select: { short_name: true } } },
         });
 
         return res.status(201).json({
             ...newReservation,
-            message: isMinor
+            message: needsApproval
                 ? 'Reserva pendiente de aprobación del titular'
                 : '¡Reserva confirmada!'
         });
@@ -131,11 +189,24 @@ router.post('/:id/cancel', requireAuth, async (req: any, res: any) => {
         const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id } });
 
         if (!reservation) return res.status(404).json({ error: 'Reservación no encontrada' });
-        if (reservation.profile_id !== user.id) return res.status(403).json({ error: 'No autorizado' });
+
+        const canCancel = reservation.profile_id === user.id
+            || (reservation.membership_id === user.membership_id
+                && (user.role === 'titular' || user.role === 'conyugue'));
+
+        if (!canCancel) return res.status(403).json({ error: 'No autorizado para cancelar' });
+
+        if (['cancelada', 'completada', 'expirada'].includes(reservation.status)) {
+            return res.status(400).json({ error: 'Esta reservación ya no puede cancelarse' });
+        }
 
         const updated = await prisma.reservation.update({
             where: { id: req.params.id },
-            data: { status: 'cancelada' },
+            data: {
+                status: 'cancelada',
+                cancelled_at: new Date(),
+                cancellation_reason: req.body.reason || 'Cancelada por el usuario',
+            },
         });
 
         return res.json({ ...updated, message: 'Reservación cancelada' });
@@ -144,27 +215,68 @@ router.post('/:id/cancel', requireAuth, async (req: any, res: any) => {
     }
 });
 
-// POST /api/approvals/:id/approve
+// POST /api/reservations/approvals/:id/approve
 router.post('/approvals/:id/approve', requireAuth, async (req: any, res: any) => {
     try {
+        const user = req.user;
+        const permissions = user.parsedPermissions;
+
+        if (!permissions.can_approve_reservations) {
+            return res.status(403).json({ error: 'No tienes permiso para aprobar reservas' });
+        }
+
+        const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id } });
+        if (!reservation || reservation.status !== 'pendiente_aprobacion') {
+            return res.status(400).json({ error: 'Reserva no válida para aprobación' });
+        }
+        if (reservation.membership_id !== user.membership_id) {
+            return res.status(403).json({ error: 'Esta reserva no pertenece a tu familia' });
+        }
+
         const updated = await prisma.reservation.update({
             where: { id: req.params.id },
-            data: { status: 'confirmada', approved_by_id: req.user.id, approved_at: new Date() },
+            data: {
+                status: 'confirmada',
+                approved_by_id: user.id,
+                approved_at: new Date(),
+            },
         });
-        return res.json(updated);
+
+        return res.json({ ...updated, message: 'Reserva aprobada' });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }
 });
 
-// POST /api/approvals/:id/reject
+// POST /api/reservations/approvals/:id/reject
 router.post('/approvals/:id/reject', requireAuth, async (req: any, res: any) => {
     try {
+        const user = req.user;
+        const permissions = user.parsedPermissions;
+
+        if (!permissions.can_approve_reservations) {
+            return res.status(403).json({ error: 'No tienes permiso para rechazar reservas' });
+        }
+
+        const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id } });
+        if (!reservation || reservation.status !== 'pendiente_aprobacion') {
+            return res.status(400).json({ error: 'Reserva no válida para rechazo' });
+        }
+        if (reservation.membership_id !== user.membership_id) {
+            return res.status(403).json({ error: 'Esta reserva no pertenece a tu familia' });
+        }
+
         const updated = await prisma.reservation.update({
             where: { id: req.params.id },
-            data: { status: 'rechazada', approved_by_id: req.user.id, approved_at: new Date() },
+            data: {
+                status: 'rechazada',
+                approved_by_id: user.id,
+                approved_at: new Date(),
+                cancellation_reason: req.body.reason || 'Rechazada por el administrador familiar',
+            },
         });
-        return res.json(updated);
+
+        return res.json({ ...updated, message: 'Reserva rechazada' });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }

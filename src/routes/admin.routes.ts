@@ -1,27 +1,10 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
+import { requireStaffAuth } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Staff auth - validate staff token
-const requireStaffAuth = async (req: any, res: any, next: any) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-    const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token' });
-    try {
-        // Staff tokens: staff_token_STAFFID_TIMESTAMP
-        const parts = token.replace('staff_token_', '').split('_');
-        const staffId = parts.slice(0, -1).join('_') || parts[0];
-        const staff = await prisma.staff.findUnique({ where: { id: staffId }, include: { unit: true } });
-        if (!staff) return res.status(401).json({ error: 'Invalid staff token' });
-        req.staff = staff;
-        next();
-    } catch { return res.status(500).json({ error: 'Auth error' }); }
-};
-
-// GET /api/admin/staff - list all staff
+// GET /api/admin/staff
 router.get('/staff', async (req: any, res: any) => {
     try {
         const { unit_id } = req.query;
@@ -39,16 +22,15 @@ router.get('/staff', async (req: any, res: any) => {
     }
 });
 
-// POST /api/admin/staff - register new employee
+// POST /api/admin/staff
 router.post('/staff', async (req: any, res: any) => {
     const { name, role, employment_type, unit_id, phone, commission_rate, fixed_rent } = req.body;
 
     if (!name || !role || !employment_type || !unit_id) {
-        return res.status(400).json({ error: 'name, role, employment_type, and unit_id are required' });
+        return res.status(400).json({ error: 'name, role, employment_type y unit_id son requeridos' });
     }
 
     try {
-        // Verify unit exists
         const unit = await prisma.unit.findUnique({ where: { id: unit_id } });
         if (!unit) return res.status(404).json({ error: 'Unidad no encontrada' });
 
@@ -66,16 +48,13 @@ router.post('/staff', async (req: any, res: any) => {
             include: { unit: { select: { short_name: true } } },
         });
 
-        return res.status(201).json({
-            ...staff,
-            message: `Empleado ${name} registrado exitosamente`,
-        });
+        return res.status(201).json({ ...staff, message: `Empleado ${name} registrado` });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }
 });
 
-// PATCH /api/admin/staff/:id - update employee
+// PATCH /api/admin/staff/:id
 router.patch('/staff/:id', async (req: any, res: any) => {
     const { id } = req.params;
     const { name, role, employment_type, phone, is_active, commission_rate, fixed_rent } = req.body;
@@ -102,12 +81,11 @@ router.patch('/staff/:id', async (req: any, res: any) => {
     }
 });
 
-// DELETE /api/admin/staff/:id - deactivate employee
+// DELETE /api/admin/staff/:id
 router.delete('/staff/:id', async (req: any, res: any) => {
-    const { id } = req.params;
     try {
         await prisma.staff.update({
-            where: { id },
+            where: { id: req.params.id },
             data: { is_active: false },
         });
         return res.json({ message: 'Empleado desactivado' });
@@ -116,11 +94,11 @@ router.delete('/staff/:id', async (req: any, res: any) => {
     }
 });
 
-// GET /api/admin/units - list units (for admin selectors)
+// GET /api/admin/units
 router.get('/units', async (_req: any, res: any) => {
     try {
         const units = await prisma.unit.findMany({
-            select: { id: true, name: true, short_name: true, code: true },
+            select: { id: true, name: true, short_name: true, code: true, operating_hours: true },
         });
         return res.json(units);
     } catch (err: any) {
@@ -128,7 +106,7 @@ router.get('/units', async (_req: any, res: any) => {
     }
 });
 
-// GET /api/admin/notifications - get recent notifications
+// GET /api/admin/notifications
 router.get('/notifications', async (req: any, res: any) => {
     try {
         const notifications = await prisma.notification.findMany({

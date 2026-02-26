@@ -1,66 +1,87 @@
 import cron from 'node-cron';
 import { processLockerRenewals } from '../services/locker.service';
 import { generateStaffSettlements } from '../services/settlement.service';
-import { PrismaClient } from '@prisma/client';
-import { format, subDays } from 'date-fns';
+import prisma from '../lib/prisma';
 
-const prisma = new PrismaClient();
+/**
+ * Get current and next quarter strings dynamically
+ */
+function getQuarterStrings() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const quarter = Math.ceil((now.getMonth() + 1) / 3);
+
+    const currentQ = `${year}-Q${quarter}`;
+    let nextQ: string;
+    if (quarter === 4) {
+        nextQ = `${year + 1}-Q1`;
+    } else {
+        nextQ = `${year}-Q${quarter + 1}`;
+    }
+
+    return { currentQ, nextQ };
+}
 
 export function setupCronJobs() {
     console.log('[Cron] Initializing scheduled tasks...');
 
-    // Cada día 00:05 - check_overdue_maintenance
+    // Daily 00:05 - check overdue maintenance bills
     cron.schedule('5 0 * * *', async () => {
         console.log('[Cron] Checking overdue maintenance...');
 
-        // Simplification for the blueprint CRON logic
         const overdueBills = await prisma.maintenanceBilling.findMany({
             where: {
-                status: 'pendiente',
+                status: { in: ['pendiente', 'vencido'] },
                 due_date: { lt: new Date() }
             }
         });
 
         for (const bill of overdueBills) {
-            const msDiff = new Date().getTime() - new Date(bill.due_date).getTime();
+            const msDiff = Date.now() - new Date(bill.due_date).getTime();
             const daysOverdue = Math.floor(msDiff / (1000 * 60 * 60 * 24));
 
-            if (daysOverdue <= 10) {
+            if (daysOverdue <= 10 && bill.status === 'pendiente') {
                 await prisma.maintenanceBilling.update({
                     where: { id: bill.id },
                     data: { status: 'vencido' }
                 });
-                // Push Notification: "Tu mantenimiento vencerá..."
-            } else {
-                // Suspend membership and all family profiles
+            } else if (daysOverdue > 10) {
+                // Suspend membership
                 await prisma.membership.update({
                     where: { id: bill.membership_id },
                     data: { status: 'suspendida' }
                 });
 
-                const profiles = await prisma.memberProfile.findMany({ where: { membership_id: bill.membership_id } });
+                // Cancel all active reservations for all family profiles
+                const profiles = await prisma.memberProfile.findMany({
+                    where: { membership_id: bill.membership_id }
+                });
 
                 for (const p of profiles) {
-                    // Cancel reservations
                     await prisma.reservation.updateMany({
-                        where: { profile_id: p.id, status: { in: ['pendiente', 'confirmada', 'pendiente_aprobacion'] } },
-                        data: { status: 'cancelada_sistema', cancellation_reason: 'Membresía suspendida (morosidad)' }
+                        where: {
+                            profile_id: p.id,
+                            status: { in: ['pendiente', 'confirmada', 'pendiente_aprobacion'] }
+                        },
+                        data: {
+                            status: 'cancelada',
+                            cancellation_reason: 'Membresía suspendida por morosidad'
+                        }
                     });
-                    // Note: Lockers freeze natively if membership status is not 'activa' during renewals
                 }
             }
         }
     });
 
-    // Cada 30 min - expire_pending_approvals
+    // Every 30 min - expire pending approvals older than 2 hours
     cron.schedule('*/30 * * * *', async () => {
         console.log('[Cron] Expiring pending approvals > 2 hours...');
-        const expirationTime = subDays(new Date(), 2 / 24); // subtracting 2 hours approx
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
         await prisma.reservation.updateMany({
             where: {
                 status: 'pendiente_aprobacion',
-                created_at: { lt: expirationTime }
+                created_at: { lt: twoHoursAgo }
             },
             data: {
                 status: 'expirada',
@@ -69,43 +90,101 @@ export function setupCronJobs() {
         });
     });
 
-    // Día 15 y último del mes - generate_staff_settlements
-    // '0 0 15,L * *'
-    cron.schedule('0 0 15 * *', async () => { // Mocking 15th
-        console.log('[Cron] Generating Settlements for period -> 15th...');
-        // Real implementation requires start/end boundary checks
-        await generateStaffSettlements(subDays(new Date(), 15), new Date());
+    // Day 15 of every month - generate staff settlements
+    cron.schedule('0 0 15 * *', async () => {
+        console.log('[Cron] Generating settlements for 1st-15th...');
+        const now = new Date();
+        const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const periodEnd = new Date(now.getFullYear(), now.getMonth(), 15, 23, 59, 59);
+        await generateStaffSettlements(periodStart, periodEnd);
     });
 
-    // Día 25 último mes del Q - process_locker_renewals
-    // '0 0 25 3,6,9,12 *'
+    // Last day of every month - generate staff settlements for 16th-end
+    cron.schedule('0 0 28-31 * *', async () => {
+        const now = new Date();
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        if (now.getDate() !== lastDay) return; // Only run on actual last day
+
+        console.log('[Cron] Generating settlements for 16th-end...');
+        const periodStart = new Date(now.getFullYear(), now.getMonth(), 16);
+        const periodEnd = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59);
+        await generateStaffSettlements(periodStart, periodEnd);
+    });
+
+    // Day 25 of Mar, Jun, Sep, Dec - process locker renewals (dynamic quarters)
     cron.schedule('0 0 25 3,6,9,12 *', async () => {
-        console.log('[Cron] Processing Locker Renewals...');
-        // Determine Q string e.g. "2026-Q1"
-        const currentQ = "2026-Q1";
-        const nextQ = "2026-Q2";
+        console.log('[Cron] Processing locker renewals...');
+        const { currentQ, nextQ } = getQuarterStrings();
         await processLockerRenewals(currentQ, nextQ);
     });
 
-    // Cada día 00:10 - check_minor_birthdays
+    // Daily 00:10 - check minor birthdays reaching 18
     cron.schedule('10 0 * * *', async () => {
         console.log('[Cron] Checking minor birthdays reaching 18...');
-        const limit18Time = new Date();
-        limit18Time.setFullYear(limit18Time.getFullYear() - 18);
+        const eighteenYearsAgo = new Date();
+        eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
 
-        await prisma.memberProfile.updateMany({
+        // Find minors who have turned 18
+        const grownUp = await prisma.memberProfile.findMany({
             where: {
                 is_minor: true,
-                date_of_birth: { lte: limit18Time }
-            },
-            data: {
-                is_minor: false
-                // Advanced mutation would expand permissions here as defined in the blueprint
+                date_of_birth: { lte: eighteenYearsAgo }
             }
         });
 
-        // We can also query for the configurable 'beneficiary_max_age' (e.g. 25) 
-        // to put limit-reached children into 'transicion'.
+        for (const profile of grownUp) {
+            // Update to adult with expanded permissions
+            const adultPermissions = {
+                can_book_spa: true, can_book_barberia: true, can_book_deportes: true,
+                can_book_alberca: true, can_rent_locker: true, can_make_payments: false,
+                can_manage_beneficiaries: false, can_approve_reservations: false,
+                can_view_account_statement: true, requires_approval: false,
+                max_active_reservations: null, spending_limit_monthly: null,
+                allowed_hours_start: null, allowed_hours_end: null
+            };
+
+            await prisma.memberProfile.update({
+                where: { id: profile.id },
+                data: {
+                    is_minor: false,
+                    permissions: JSON.stringify(adultPermissions),
+                }
+            });
+        }
+    });
+
+    // 1st of every month - generate maintenance bills
+    cron.schedule('0 1 1 * *', async () => {
+        console.log('[Cron] Generating monthly maintenance bills...');
+        const now = new Date();
+        const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        const activeMemberships = await prisma.membership.findMany({
+            where: { status: 'activa' }
+        });
+
+        for (const membership of activeMemberships) {
+            // Check if bill already exists for this period
+            const existing = await prisma.maintenanceBilling.findFirst({
+                where: { membership_id: membership.id, period }
+            });
+
+            if (!existing) {
+                const dueDate = new Date(now.getFullYear(), now.getMonth(), 10); // Due on the 10th
+                const graceDeadline = new Date(now.getFullYear(), now.getMonth(), 20); // Grace until 20th
+
+                await prisma.maintenanceBilling.create({
+                    data: {
+                        membership_id: membership.id,
+                        period,
+                        amount: membership.monthly_fee,
+                        due_date: dueDate,
+                        grace_deadline: graceDeadline,
+                        status: 'pendiente',
+                    }
+                });
+            }
+        }
     });
 
     console.log('[Cron] Tasks scheduled successfully.');

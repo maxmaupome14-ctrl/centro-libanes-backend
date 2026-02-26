@@ -1,34 +1,11 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
+import { requireAuth } from '../middleware/auth';
 
-const ProfileRole = {
-    titular: 'titular',
-    conyugue: 'conyugue',
-    hijo: 'hijo'
-};
 const router = Router();
-const prisma = new PrismaClient();
-
-// Real Auth Middleware
-const requireAuth = async (req: any, res: any, next: any) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-    const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token' });
-    try {
-        const profileId = token.replace('mock_jwt_token_', '');
-        const profile = await prisma.memberProfile.findUnique({
-            where: { id: profileId },
-            include: { membership: true },
-        });
-        if (!profile) return res.status(401).json({ error: 'Invalid token' });
-        req.user = { ...profile, membership_id: profile.membership_id };
-        next();
-    } catch { return res.status(500).json({ error: 'Auth error' }); }
-};
 
 const getDefaultPermissions = (role: string, is_minor: boolean) => {
-    if (role === ProfileRole.titular) {
+    if (role === 'titular') {
         return {
             can_book_spa: true, can_book_barberia: true, can_book_deportes: true,
             can_book_alberca: true, can_rent_locker: true, can_make_payments: true,
@@ -39,7 +16,7 @@ const getDefaultPermissions = (role: string, is_minor: boolean) => {
         };
     }
 
-    if (role === ProfileRole.hijo && is_minor) {
+    if (role === 'hijo' && is_minor) {
         return {
             can_book_spa: false, can_book_barberia: false, can_book_deportes: true,
             can_book_alberca: true, can_rent_locker: false, can_make_payments: false,
@@ -50,7 +27,7 @@ const getDefaultPermissions = (role: string, is_minor: boolean) => {
         };
     }
 
-    // default backoff for spouse/adults
+    // conyugue / adult hijo
     return {
         can_book_spa: true, can_book_barberia: true, can_book_deportes: true,
         can_book_alberca: true, can_rent_locker: true, can_make_payments: false,
@@ -61,70 +38,98 @@ const getDefaultPermissions = (role: string, is_minor: boolean) => {
     };
 };
 
-// GET /api/membership/{id}/beneficiaries - list beneficiaries
+// GET /api/membership/:id/beneficiaries
 router.get('/:id/beneficiaries', requireAuth, async (req, res) => {
     const { id } = req.params;
 
     try {
         const profiles = await prisma.memberProfile.findMany({
-            where: { membership_id: id }
+            where: { membership_id: id, is_active: true },
+            select: {
+                id: true, first_name: true, last_name: true, role: true,
+                email: true, phone: true, date_of_birth: true, is_minor: true,
+                photo_url: true, permissions: true, profile_status: true,
+            }
         });
-        return res.json(profiles);
+
+        const parsed = profiles.map(p => ({
+            ...p,
+            permissions: (() => {
+                try {
+                    return typeof p.permissions === 'string' ? JSON.parse(p.permissions) : p.permissions;
+                } catch { return {}; }
+            })()
+        }));
+
+        return res.json(parsed);
     } catch (error) {
         return res.status(500).json({ error: 'Server Error' });
     }
 });
 
-// POST /api/membership/{id}/beneficiaries - add beneficiary
-router.post('/:id/beneficiaries', requireAuth, async (req, res) => {
+// POST /api/membership/:id/beneficiaries
+router.post('/:id/beneficiaries', requireAuth, async (req: any, res) => {
     const { id } = req.params;
-    const { first_name, last_name, role, date_of_birth, email, phone } = req.body;
+    const { first_name, last_name, role, date_of_birth, email, phone, gender } = req.body;
+    const userPerms = req.user.parsedPermissions;
+
+    if (!userPerms.can_manage_beneficiaries) {
+        return res.status(403).json({ error: 'No tienes permiso para gestionar beneficiarios' });
+    }
+
+    if (!first_name || !last_name || !role || !date_of_birth) {
+        return res.status(400).json({ error: 'first_name, last_name, role y date_of_birth son requeridos' });
+    }
 
     try {
-        // 1. Calculate maturity
         const dob = new Date(date_of_birth);
         const ageDiffMs = Date.now() - dob.getTime();
         const ageDate = new Date(ageDiffMs);
         const is_minor = Math.abs(ageDate.getUTCFullYear() - 1970) < 18;
 
-        // 2. Fetch Default permissions mapped from blueprint
-        const permissions = getDefaultPermissions(role as string, is_minor);
+        const permissions = getDefaultPermissions(role, is_minor);
 
         const newProfile = await prisma.memberProfile.create({
             data: {
                 membership_id: id,
-                role: role as string,
+                role,
                 first_name,
                 last_name,
                 date_of_birth: dob,
                 is_minor,
-                email,
-                phone,
-                permissions: JSON.stringify(permissions)
+                email: email || null,
+                phone: phone || null,
+                gender: gender || null,
+                permissions: JSON.stringify(permissions),
             }
         });
 
-        return res.status(201).json(newProfile);
-    } catch (error) {
+        return res.status(201).json({ ...newProfile, permissions });
+    } catch (error: any) {
         console.error(error);
-        return res.status(500).json({ error: 'Failed to create beneficiary' });
+        return res.status(500).json({ error: 'Error al crear beneficiario: ' + error.message });
     }
 });
 
-// PATCH /api/membership/{id}/beneficiaries/{pid} - edit profile/permissions
-router.patch('/:id/beneficiaries/:pid', requireAuth, async (req, res) => {
+// PATCH /api/membership/:id/beneficiaries/:pid
+router.patch('/:id/beneficiaries/:pid', requireAuth, async (req: any, res) => {
     const { pid } = req.params;
     const { permissions, spending_limit_monthly } = req.body;
+    const userPerms = req.user.parsedPermissions;
+
+    if (!userPerms.can_manage_beneficiaries) {
+        return res.status(403).json({ error: 'No tienes permiso para editar beneficiarios' });
+    }
 
     try {
-        // Basic structural update (e.g., updating limits)
-        let updateData: any = {};
+        const updateData: any = {};
 
         if (permissions) {
+            let permsObj = typeof permissions === 'string' ? JSON.parse(permissions) : permissions;
             if (spending_limit_monthly !== undefined) {
-                permissions.spending_limit_monthly = spending_limit_monthly;
+                permsObj.spending_limit_monthly = spending_limit_monthly;
             }
-            updateData.permissions = permissions;
+            updateData.permissions = JSON.stringify(permsObj);
         }
 
         const updatedProfile = await prisma.memberProfile.update({
@@ -132,26 +137,30 @@ router.patch('/:id/beneficiaries/:pid', requireAuth, async (req, res) => {
             data: updateData
         });
 
-        return res.json(updatedProfile);
+        return res.json({
+            ...updatedProfile,
+            permissions: JSON.parse(updatedProfile.permissions),
+        });
     } catch (error) {
-        return res.status(500).json({ error: 'Error updating profile' });
+        return res.status(500).json({ error: 'Error actualizando perfil' });
     }
 });
 
-// DELETE /api/membership/{id}/beneficiaries/{pid} - Soft delete (deactivate)
-router.delete('/:id/beneficiaries/:pid', requireAuth, async (req, res) => {
+// DELETE /api/membership/:id/beneficiaries/:pid
+router.delete('/:id/beneficiaries/:pid', requireAuth, async (req: any, res) => {
     const { pid } = req.params;
+    const userPerms = req.user.parsedPermissions;
+
+    if (!userPerms.can_manage_beneficiaries) {
+        return res.status(403).json({ error: 'No tienes permiso para desactivar beneficiarios' });
+    }
 
     try {
-        const updatedProfile = await prisma.memberProfile.update({
+        await prisma.memberProfile.update({
             where: { id: pid },
-            data: {
-                is_active: false,
-                profile_status: 'inactivo'
-            }
+            data: { is_active: false, profile_status: 'inactivo' }
         });
 
-        // Blueprint behavior: cancel future reservations
         await prisma.reservation.updateMany({
             where: {
                 profile_id: pid,
@@ -159,16 +168,14 @@ router.delete('/:id/beneficiaries/:pid', requireAuth, async (req, res) => {
                 date: { gte: new Date() }
             },
             data: {
-                status: 'cancelada_sistema',
+                status: 'cancelada',
                 cancellation_reason: 'Perfil desactivado por el titular.'
             }
         });
 
-        // Note: Blueprint says "Do not cancel lockers", so we leave them frozen or active.
-
-        return res.json({ success: true, message: 'Beneficiario desactivado exitosamente y reservas futuras canceladas.' });
+        return res.json({ success: true, message: 'Beneficiario desactivado y reservas futuras canceladas.' });
     } catch (error) {
-        return res.status(500).json({ error: 'Error deactivating profile' });
+        return res.status(500).json({ error: 'Error desactivando perfil' });
     }
 });
 

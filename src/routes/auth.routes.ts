@@ -1,11 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST /api/auth/select-profile
-// Step 1: User enters member_number. Backend returns the active profiles.
 router.post('/select-profile', async (req, res) => {
     const { member_number } = req.body;
 
@@ -34,7 +32,6 @@ router.post('/select-profile', async (req, res) => {
             });
         }
 
-        // Only return non-sensitive fields to the client for selection
         const profiles = membership.profiles.map(p => ({
             id: p.id,
             first_name: p.first_name,
@@ -52,7 +49,6 @@ router.post('/select-profile', async (req, res) => {
 });
 
 // POST /api/auth/login
-// Step 2: User selects profile and provides password (or PIN for minors without email)
 router.post('/login', async (req, res) => {
     const { profile_id, pin, password } = req.body;
 
@@ -70,33 +66,44 @@ router.post('/login', async (req, res) => {
             return res.status(404).json({ error: 'Perfil inactivo o no encontrado' });
         }
 
-        // Logic: If minor, check PIN. Else check Auth Provider password (simulated here)
+        if (profile.membership.status !== 'activa') {
+            return res.status(403).json({
+                error: 'suspension',
+                message: 'Tu membresía está suspendida.'
+            });
+        }
+
+        // Minor: check PIN. Adult: check password
         if (profile.is_minor) {
             if (!pin || profile.pin_code !== pin) {
                 return res.status(401).json({ error: 'PIN incorrecto' });
             }
         } else {
-            // For adults, rely on Auth Provider (e.g. Supabase/Firebase)
-            // Here we assume the frontend sends a verified provider token, or we check hash
             if (!password) {
-                return res.status(401).json({ error: 'Password o Token requerido' });
+                return res.status(401).json({ error: 'Password requerido' });
             }
-            // TODO: Replace with actual verifyPassword(password, profile.auth_user_id)
+            // In production: verify against auth provider (Supabase/Firebase)
+            // For development, accept any non-empty password
         }
 
-        // Generate strict JWT token payload containing family roles and permissions
+        // Parse permissions
+        let permissions: any = {};
+        try {
+            permissions = typeof profile.permissions === 'string'
+                ? JSON.parse(profile.permissions) : profile.permissions;
+        } catch { permissions = {}; }
+
         const tokenPayload = {
             id: profile.id,
             membership_id: profile.membership_id,
-            member_number: String(profile.membership.member_number),
+            member_number: profile.membership.member_number,
             role: profile.role,
             first_name: profile.first_name,
             last_name: profile.last_name,
             is_minor: profile.is_minor,
-            permissions: profile.permissions
+            permissions,
         };
 
-        // Return mocked JWT (implement sign in real env)
         const token = `mock_jwt_token_${profile.id}`;
 
         return res.json({ token, user: tokenPayload });
@@ -107,26 +114,30 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/setup-pin
-// Configurar PIN para menor
 router.post('/setup-pin', async (req, res) => {
     const { profile_id, new_pin } = req.body;
 
-    // Real world: Requires adult authentication token intercepting this request
+    if (!profile_id || !new_pin) {
+        return res.status(400).json({ error: 'profile_id y new_pin son requeridos' });
+    }
+
+    if (new_pin.length < 4 || new_pin.length > 6) {
+        return res.status(400).json({ error: 'El PIN debe tener entre 4 y 6 dígitos' });
+    }
 
     try {
-        const profile = await prisma.memberProfile.update({
+        await prisma.memberProfile.update({
             where: { id: profile_id },
             data: { pin_code: new_pin }
         });
 
         return res.json({ success: true, message: 'PIN configurado' });
     } catch (error) {
-        return res.status(500).json({ error: 'Error setting PIN' });
+        return res.status(500).json({ error: 'Error al configurar PIN' });
     }
 });
 
 // POST /api/auth/staff-login
-// Employee login: username (staff name) + password
 router.post('/staff-login', async (req, res) => {
     const { username, password } = req.body;
 
@@ -135,7 +146,6 @@ router.post('/staff-login', async (req, res) => {
     }
 
     try {
-        // Look up staff by name (case-insensitive partial match)
         const staff = await prisma.staff.findFirst({
             where: {
                 name: { contains: username },
@@ -148,7 +158,8 @@ router.post('/staff-login', async (req, res) => {
             return res.status(404).json({ error: 'Empleado no encontrado' });
         }
 
-        // Demo password check (in production, use bcrypt)
+        // In production: use bcrypt.compare(password, staff.password_hash)
+        // For development, accept 'staff123' as demo password
         if (password !== 'staff123') {
             return res.status(401).json({ error: 'Contraseña incorrecta' });
         }
@@ -167,9 +178,8 @@ router.post('/staff-login', async (req, res) => {
             },
         });
     } catch (error: any) {
-        return res.status(500).json({ error: error.message || 'Error logging in staff' });
+        return res.status(500).json({ error: error.message || 'Error de autenticación' });
     }
 });
 
 export default router;
-

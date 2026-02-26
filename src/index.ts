@@ -8,6 +8,8 @@ import paymentRoutes from './routes/payment.routes';
 import catalogRoutes from './routes/catalog.routes';
 import lockerRoutes from './routes/locker.routes';
 import adminRoutes from './routes/admin.routes';
+import profileRoutes from './routes/profile.routes';
+import enrollmentRoutes from './routes/enrollment.routes';
 import { setupCronJobs } from './cron/jobs';
 
 dotenv.config();
@@ -20,11 +22,13 @@ app.use(express.json());
 
 // Main modular routes
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/membership', familyRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/lockers', lockerRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/health', (req, res) => {

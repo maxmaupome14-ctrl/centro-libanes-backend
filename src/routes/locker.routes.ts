@@ -1,26 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
-
-// Auth middleware - same pattern as reservation routes
-const requireAuth = async (req: any, res: any, next: any) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-    const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token' });
-    try {
-        const profileId = token.replace('mock_jwt_token_', '');
-        const profile = await prisma.memberProfile.findUnique({
-            where: { id: profileId },
-            include: { membership: true },
-        });
-        if (!profile) return res.status(401).json({ error: 'Invalid token' });
-        req.user = { ...profile, membership_id: profile.membership_id };
-        next();
-    } catch { return res.status(500).json({ error: 'Auth error' }); }
-};
 
 // GET /api/lockers - list lockers for a unit
 router.get('/', async (req: any, res: any) => {
@@ -51,7 +33,7 @@ router.get('/', async (req: any, res: any) => {
             size: l.size,
             condition: l.condition,
             unit: l.unit.short_name,
-            is_available: l.rentals.length === 0,
+            is_available: l.rentals.length === 0 && l.condition === 'operativo',
             current_rental: l.rentals[0] || null,
         }));
 
@@ -61,19 +43,38 @@ router.get('/', async (req: any, res: any) => {
     }
 });
 
-// POST /api/lockers/:id/rent - rent a locker
+// GET /api/lockers/my - MUST be before /:id routes
+router.get('/my', requireAuth, async (req: any, res: any) => {
+    const user = req.user;
+    try {
+        const rentals = await prisma.lockerRental.findMany({
+            where: { profile_id: user.id, status: 'activa' },
+            include: {
+                locker: { include: { unit: { select: { short_name: true } } } },
+            },
+        });
+        return res.json(rentals);
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/lockers/:id/rent
 router.post('/:id/rent', requireAuth, async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
+    const permissions = user.parsedPermissions;
+
+    if (permissions.can_rent_locker === false) {
+        return res.status(403).json({ error: 'No tienes permiso para rentar lockers' });
+    }
 
     try {
         const locker = await prisma.locker.findUnique({ where: { id } });
         if (!locker) return res.status(404).json({ error: 'Locker no encontrado' });
         if (locker.condition !== 'operativo') return res.status(400).json({ error: 'Locker no disponible' });
 
-        // Check if already rented this quarter
-        const now = new Date();
-        const currentQ = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
+        // Check if already rented
         const existing = await prisma.lockerRental.findFirst({
             where: { locker_id: id, status: 'activa' },
         });
@@ -83,8 +84,12 @@ router.post('/:id/rent', requireAuth, async (req: any, res: any) => {
         const prices: Record<string, number> = { chico: 400, mediano: 600, grande: 800 };
         const price = prices[locker.size] || 500;
 
-        // End of current quarter
+        // Calculate current quarter and end date
+        const now = new Date();
+        const currentQ = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
+        // Last day of current quarter: month 3,6,9,12 → day 0 of next month
         const qEnd = new Date(now.getFullYear(), Math.ceil((now.getMonth() + 1) / 3) * 3, 0);
+        qEnd.setHours(23, 59, 59, 999);
 
         const rental = await prisma.lockerRental.create({
             data: {
@@ -103,14 +108,14 @@ router.post('/:id/rent', requireAuth, async (req: any, res: any) => {
 
         return res.status(201).json({
             ...rental,
-            message: `Locker ${locker.number} rentado exitosamente`,
+            message: `Locker ${locker.number} rentado hasta ${qEnd.toISOString().split('T')[0]}`,
         });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }
 });
 
-// POST /api/lockers/:id/release - release a locker
+// POST /api/lockers/:id/release
 router.post('/:id/release', requireAuth, async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
@@ -129,22 +134,6 @@ router.post('/:id/release', requireAuth, async (req: any, res: any) => {
         return res.json({ message: 'Locker liberado exitosamente' });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
-    }
-});
-
-// GET /api/lockers/my - get my rented lockers
-router.get('/my', requireAuth, async (req: any, res: any) => {
-    const user = req.user;
-    try {
-        const rentals = await prisma.lockerRental.findMany({
-            where: { profile_id: user.id, status: 'activa' },
-            include: {
-                locker: { include: { unit: { select: { short_name: true } } } },
-            },
-        });
-        return res.json(rentals);
-    } catch (err: any) {
-        return res.status(500).json({ error: err.message });
     }
 });
 
