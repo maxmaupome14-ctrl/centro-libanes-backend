@@ -18,6 +18,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
+// Raw body for Stripe webhook signature verification
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
 // Main modular routes

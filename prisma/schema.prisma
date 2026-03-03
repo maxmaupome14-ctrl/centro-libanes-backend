@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ---------------------------------------------------------
@@ -105,6 +105,8 @@ model SystemConfig {
   locker_preference_hours     Int     @default(48)
   settlement_frequency        String  @default("biweekly")
   beneficiary_max_age         Int     @default(25)
+  approval_timeout_hours      Int     @default(2)
+  max_courts_per_type_per_week Int    @default(2)
   club_hours                  String?
   peak_hours                  String?
 }
@@ -143,6 +145,7 @@ model MemberProfile {
   photo_url         String?
   palm_biometric_id String?
   pin_code          String?
+  password_hash     String?
   permissions       String
   is_active         Boolean       @default(true)
   auth_user_id      String?       @unique
@@ -170,6 +173,7 @@ model Staff {
   commission_rate   Decimal?
   fixed_rent        Decimal?
   schedule_template String?
+  password_hash     String?
   is_active         Boolean        @default(true)
   phone             String?
   created_at        DateTime       @default(now())

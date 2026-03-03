@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { addMinutes } from 'date-fns';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { checkSpendingLimit } from '../services/reservation.service';
@@ -130,7 +131,41 @@ router.post('/book', requireAuth, async (req: any, res: any) => {
             }
         }
 
-        // 5. Resolve unit_id
+        // 5. Check max courts per type per week (resource bookings only)
+        if (resource_id) {
+            const resource = await prisma.resource.findUnique({ where: { code: resource_id } });
+            if (resource) {
+                const bookingDate = new Date(date);
+                const weekStart = new Date(bookingDate);
+                weekStart.setDate(bookingDate.getDate() - bookingDate.getDay());
+                weekStart.setHours(0, 0, 0, 0);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 7);
+
+                // Find all resources of same type
+                const sameTypeResources = await prisma.resource.findMany({
+                    where: { type: resource.type, unit_id: resource.unit_id }
+                });
+                const sameTypeCodes = sameTypeResources.map(r => r.code);
+
+                const courtBookingsThisWeek = await prisma.reservation.count({
+                    where: {
+                        profile_id: user.id,
+                        resource_id: { in: sameTypeCodes },
+                        date: { gte: weekStart, lt: weekEnd },
+                        status: { in: ['confirmada', 'pendiente', 'pendiente_aprobacion'] },
+                    }
+                });
+
+                if (courtBookingsThisWeek >= 2) {
+                    return res.status(403).json({
+                        error: `Máximo 2 reservas de ${resource.type} por semana`
+                    });
+                }
+            }
+        }
+
+        // 6. Resolve unit_id
         let resolvedUnitId: string | null = null;
         if (service_id) {
             const svc = await prisma.service.findUnique({ where: { id: service_id } });
@@ -200,6 +235,31 @@ router.post('/:id/cancel', requireAuth, async (req: any, res: any) => {
             return res.status(400).json({ error: 'Esta reservación ya no puede cancelarse' });
         }
 
+        // Check late cancellation (< 2h before start)
+        let lateCancelCharge = 0;
+        if (reservation.service_id) {
+            const svc = await prisma.service.findUnique({ where: { id: reservation.service_id } });
+            if (svc && Number(svc.price) > 0) {
+                const now = new Date();
+                const startTime = new Date(reservation.start_time);
+                const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+                if (hoursUntilStart < 2 && hoursUntilStart > 0) {
+                    lateCancelCharge = Number(svc.price) * 0.5;
+                    await prisma.payment.create({
+                        data: {
+                            membership_id: reservation.membership_id,
+                            profile_id: reservation.profile_id,
+                            type: 'penalizacion',
+                            amount: lateCancelCharge,
+                            status: 'pendiente',
+                            reference_id: reservation.id,
+                        }
+                    });
+                }
+            }
+        }
+
         const updated = await prisma.reservation.update({
             where: { id: req.params.id },
             data: {
@@ -209,7 +269,12 @@ router.post('/:id/cancel', requireAuth, async (req: any, res: any) => {
             },
         });
 
-        return res.json({ ...updated, message: 'Reservación cancelada' });
+        return res.json({
+            ...updated,
+            message: lateCancelCharge > 0
+                ? `Reservación cancelada. Cargo por cancelación tardía: $${lateCancelCharge.toFixed(2)} MXN`
+                : 'Reservación cancelada'
+        });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }

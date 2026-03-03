@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { addMinutes } from 'date-fns';
 import { processLockerRenewals } from '../services/locker.service';
 import { generateStaffSettlements } from '../services/settlement.service';
 import prisma from '../lib/prisma';
@@ -187,5 +188,206 @@ export function setupCronJobs() {
         }
     });
 
-    console.log('[Cron] Tasks scheduled successfully.');
+    // ── Every 30 min: check no-shows (15 min past start) ──
+    cron.schedule('*/30 * * * *', async () => {
+        console.log('[Cron] Checking for no-shows...');
+        const now = new Date();
+        const fifteenAgo = addMinutes(now, -15);
+
+        const noShows = await prisma.reservation.findMany({
+            where: {
+                status: 'confirmada',
+                start_time: { lt: fifteenAgo },
+                date: {
+                    gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+                    lt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+                },
+            },
+            include: { service: true }
+        });
+
+        for (const res of noShows) {
+            await prisma.reservation.update({
+                where: { id: res.id },
+                data: { status: 'cancelada', cancellation_reason: 'No-show automático (15 min)' }
+            });
+
+            // Auto-charge no-show fee
+            if (res.service && Number(res.service.no_show_fee) > 0) {
+                await prisma.payment.create({
+                    data: {
+                        membership_id: res.membership_id,
+                        profile_id: res.profile_id,
+                        type: 'no_show',
+                        amount: res.service.no_show_fee,
+                        status: 'pendiente',
+                        reference_id: res.id,
+                    }
+                });
+            }
+        }
+        if (noShows.length > 0) console.log(`[Cron] Marked ${noShows.length} no-shows`);
+    });
+
+    // ── Daily 08:00: reservation reminders for tomorrow ──
+    cron.schedule('0 8 * * *', async () => {
+        console.log('[Cron] Sending reservation reminders...');
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const dayAfter = new Date(tomorrow);
+        dayAfter.setDate(dayAfter.getDate() + 1);
+
+        const upcoming = await prisma.reservation.findMany({
+            where: { date: { gte: tomorrow, lt: dayAfter }, status: 'confirmada' },
+            include: { profile: true, service: true }
+        });
+
+        for (const res of upcoming) {
+            await prisma.notification.create({
+                data: {
+                    recipient_id: res.profile_id,
+                    recipient_type: 'member',
+                    channel: 'push', type: 'reservation_reminder',
+                    title: 'Recordatorio de reserva',
+                    body: `Mañana tienes ${res.service?.name || 'una reserva'} a las ${res.start_time.toISOString().slice(11, 16)}`,
+                    status: 'pending',
+                }
+            });
+        }
+        console.log(`[Cron] Created ${upcoming.length} reminders`);
+    });
+
+    // ── Daily 07:00: staff daily agenda ──
+    cron.schedule('0 7 * * *', async () => {
+        console.log('[Cron] Generating staff daily agendas...');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const staffMembers = await prisma.staff.findMany({ where: { is_active: true } });
+        for (const staff of staffMembers) {
+            const appointments = await prisma.reservation.count({
+                where: { staff_id: staff.id, date: { gte: today, lt: tomorrow }, status: 'confirmada' }
+            });
+            if (appointments > 0) {
+                await prisma.notification.create({
+                    data: {
+                        recipient_id: staff.id,
+                        recipient_type: 'staff',
+                        channel: 'push', type: 'daily_agenda',
+                        title: 'Tu agenda del día',
+                        body: `Tienes ${appointments} cita(s) programada(s) hoy`,
+                        status: 'pending',
+                    }
+                });
+            }
+        }
+    });
+
+    // ── Every 30 min: 2h-before reminders ──
+    cron.schedule('*/30 * * * *', async () => {
+        const now = new Date();
+        const twoHoursFromNow = addMinutes(now, 120);
+        const windowEnd = addMinutes(now, 150);
+
+        const upcoming = await prisma.reservation.findMany({
+            where: {
+                status: 'confirmada',
+                start_time: { gte: twoHoursFromNow, lt: windowEnd },
+            },
+            include: { profile: true, service: true }
+        });
+
+        for (const res of upcoming) {
+            await prisma.notification.create({
+                data: {
+                    recipient_id: res.profile_id,
+                    recipient_type: 'member',
+                    channel: 'push', type: 'reservation_2h_reminder',
+                    title: 'Tu reserva es en 2 horas',
+                    body: `${res.service?.name || 'Reserva'} a las ${res.start_time.toISOString().slice(11, 16)}`,
+                    status: 'pending',
+                }
+            });
+        }
+    });
+
+    // ── Day 1 of month 02:00: account statements ──
+    cron.schedule('0 2 1 * *', async () => {
+        console.log('[Cron] Generating monthly account statements...');
+        const memberships = await prisma.membership.findMany({ where: { status: 'activa' } });
+        const now = new Date();
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const period = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+
+        for (const m of memberships) {
+            const titular = await prisma.memberProfile.findFirst({
+                where: { membership_id: m.id, role: 'titular' }
+            });
+            if (!titular) continue;
+
+            const payments = await prisma.payment.aggregate({
+                _sum: { amount: true },
+                where: { membership_id: m.id, created_at: { gte: prevMonth, lt: now } }
+            });
+
+            await prisma.notification.create({
+                data: {
+                    recipient_id: titular.id,
+                    recipient_type: 'member',
+                    channel: 'email', type: 'account_statement',
+                    title: `Estado de cuenta ${period}`,
+                    body: `Total del periodo: $${payments._sum.amount || 0} MXN`,
+                    status: 'pending',
+                }
+            });
+        }
+    });
+
+    // ── Day 1 of Q (Jan, Apr, Jul, Oct): locker preference window ──
+    cron.schedule('0 0 1 1,4,7,10 *', async () => {
+        console.log('[Cron] Opening locker preference window (48h)...');
+        // Log event — actual logic handled by locker service
+    });
+
+    // ── Day 3 of Q: release unclaimed lockers ──
+    cron.schedule('0 0 3 1,4,7,10 *', async () => {
+        console.log('[Cron] Releasing unclaimed preference lockers...');
+        // Log event — actual logic handled by locker service
+    });
+
+    // ── Weekly Monday 09:00: family spending summary ──
+    cron.schedule('0 9 * * 1', async () => {
+        console.log('[Cron] Generating weekly family spending summaries...');
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+        const titulares = await prisma.memberProfile.findMany({
+            where: { role: 'titular', is_active: true }
+        });
+
+        for (const titular of titulares) {
+            const familyPayments = await prisma.payment.aggregate({
+                _sum: { amount: true },
+                _count: true,
+                where: { membership_id: titular.membership_id, created_at: { gte: weekAgo } }
+            });
+
+            if (familyPayments._count > 0) {
+                await prisma.notification.create({
+                    data: {
+                        recipient_id: titular.id,
+                        recipient_type: 'member',
+                        channel: 'push', type: 'weekly_spending',
+                        title: 'Resumen semanal de gastos',
+                        body: `Tu familia tuvo ${familyPayments._count} cargos por $${familyPayments._sum.amount || 0} MXN esta semana`,
+                        status: 'pending',
+                    }
+                });
+            }
+        }
+    });
+
+    console.log('[Cron] All 14 tasks scheduled successfully.');
 }
