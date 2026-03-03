@@ -1,0 +1,1212 @@
+[
+    {
+        "name": "Academia de Danza Jazz",
+        "cat": "danza",
+        "schedules": [
+            {
+                "age": "7-10 años",
+                "min_age": 7,
+                "max_age": 10,
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "16:00",
+                "end": "17:00"
+            },
+            {
+                "age": "4-6 años",
+                "min_age": 4,
+                "max_age": 6,
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "age": "11+",
+                "min_age": 11,
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Acondicionamiento Físico Niños",
+        "cat": "deportes",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            }
+        ]
+    },
+    {
+        "name": "Aquaerobics",
+        "cat": "acuaticas",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            }
+        ]
+    },
+    {
+        "name": "Aquafitness",
+        "cat": "acuaticas",
+        "age_label": "Adultos",
+        "min_age": 18,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "19:00",
+                "end": "20:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "saturday",
+                    "sunday"
+                ],
+                "start": "10:00",
+                "end": "11:30"
+            }
+        ]
+    },
+    {
+        "name": "Aquafitness Adultos Mayores",
+        "cat": "acuaticas",
+        "schedules": [
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "11:30",
+                "end": "12:30"
+            },
+            {
+                "days": [
+                    "saturday"
+                ],
+                "start": "09:00",
+                "end": "11:00"
+            }
+        ]
+    },
+    {
+        "name": "Baile",
+        "cat": "danza",
+        "age_label": "Adolescentes y adultos",
+        "min_age": 13,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "07:30",
+                "end": "08:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "monday"
+                ],
+                "start": "11:00",
+                "end": "13:00"
+            },
+            {
+                "days": [
+                    "wednesday"
+                ],
+                "start": "10:00",
+                "end": "12:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            }
+        ]
+    },
+    {
+        "name": "Ballet",
+        "cat": "danza",
+        "schedules": [
+            {
+                "age": "Baby ballet (3 años)",
+                "min_age": 3,
+                "max_age": 3,
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "15:15",
+                "end": "16:00"
+            },
+            {
+                "age": "Preprimary (4-5 años)",
+                "min_age": 4,
+                "max_age": 5,
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "age": "Primary 1 (6-8 años)",
+                "min_age": 6,
+                "max_age": 8,
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "17:00"
+            },
+            {
+                "age": "Primary 2 (9-13 años)",
+                "min_age": 9,
+                "max_age": 13,
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Barre",
+        "cat": "danza",
+        "age_label": "Adolescentes y adultos",
+        "min_age": 13,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "saturday"
+                ],
+                "start": "11:00",
+                "end": "12:00"
+            }
+        ]
+    },
+    {
+        "name": "Basquetbol",
+        "cat": "deportes",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "21:00"
+            }
+        ]
+    },
+    {
+        "name": "Be Cross Fit",
+        "cat": "fitness",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "07:00",
+                "end": "08:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "08:00",
+                "end": "09:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "09:00",
+                "end": "10:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "16:00",
+                "end": "17:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Box",
+        "cat": "artes_marciales",
+        "age_label": "Clase abierta",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "07:00",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "16:00",
+                "end": "19:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "19:00",
+                "end": "21:00"
+            },
+            {
+                "days": [
+                    "saturday"
+                ],
+                "start": "09:00",
+                "end": "12:00"
+            }
+        ]
+    },
+    {
+        "name": "Danza Árabe",
+        "cat": "danza",
+        "schedules": [
+            {
+                "age": "6-10 años",
+                "min_age": 6,
+                "max_age": 10,
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "16:00",
+                "end": "17:00"
+            },
+            {
+                "age": "10-14 años",
+                "min_age": 10,
+                "max_age": 14,
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "age": "Adultos",
+                "min_age": 18,
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            },
+            {
+                "age": "Adultos",
+                "min_age": 18,
+                "days": [
+                    "saturday"
+                ],
+                "start": "11:00",
+                "end": "14:00"
+            }
+        ]
+    },
+    {
+        "name": "Estimulación Temprana 8m-1a",
+        "cat": "estimulacion_temprana",
+        "age_label": "8 meses a 1 año",
+        "min_age_months": 8,
+        "max_age_months": 12,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "11:00",
+                "end": "12:00"
+            }
+        ]
+    },
+    {
+        "name": "Estimulación Temprana 1a-1a8m",
+        "cat": "estimulacion_temprana",
+        "age_label": "1 año a 1 año 8 meses",
+        "min_age_months": 12,
+        "max_age_months": 20,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "12:00",
+                "end": "13:00"
+            }
+        ]
+    },
+    {
+        "name": "Estimulación Temprana 1a8m-2a",
+        "cat": "estimulacion_temprana",
+        "age_label": "1 año 8 meses a 2 años",
+        "min_age_months": 20,
+        "max_age_months": 24,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "13:00",
+                "end": "14:00"
+            }
+        ]
+    },
+    {
+        "name": "Fuerza y Rehabilitación",
+        "cat": "fitness",
+        "schedules": [
+            {
+                "days": [
+                    "monday"
+                ],
+                "start": "09:00",
+                "end": "11:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "12:35",
+                "end": "13:35"
+            }
+        ]
+    },
+    {
+        "name": "Futbol Niños",
+        "cat": "deportes",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Futbol Femenil",
+        "cat": "deportes",
+        "min_age": 12,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "17:30",
+                "end": "19:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "17:00",
+                "end": "18:50"
+            }
+        ]
+    },
+    {
+        "name": "Gimnasio de Cardio",
+        "cat": "fitness",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                ],
+                "start": "06:00",
+                "end": "22:00"
+            }
+        ]
+    },
+    {
+        "name": "Glúteo y Abdomen",
+        "cat": "fitness",
+        "min_age": 18,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "days": [
+                    "saturday",
+                    "sunday"
+                ],
+                "start": "11:00",
+                "end": "12:00"
+            }
+        ]
+    },
+    {
+        "name": "Iniciación Deportiva",
+        "cat": "infantil",
+        "age_label": "A partir de 2 años 8 meses",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            }
+        ]
+    },
+    {
+        "name": "Natación Bebés e Infantil",
+        "cat": "acuaticas",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "11:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Natación Adultos",
+        "cat": "acuaticas",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday"
+                ],
+                "start": "06:30",
+                "end": "12:00"
+            }
+        ]
+    },
+    {
+        "name": "Pádel Niños",
+        "cat": "deportes",
+        "schedules": [
+            {
+                "age": "Niños",
+                "min_age": 6,
+                "max_age": 15,
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            }
+        ]
+    },
+    {
+        "name": "Pádel Adultos",
+        "cat": "deportes",
+        "min_age": 18,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "09:00",
+                "end": "11:00"
+            }
+        ]
+    },
+    {
+        "name": "Pilates",
+        "cat": "bienestar",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            }
+        ]
+    },
+    {
+        "name": "Pilates de Cama (Reformer)",
+        "cat": "bienestar",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "06:30",
+                "end": "07:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "07:30",
+                "end": "08:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "17:00",
+                "end": "18:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "19:00",
+                "end": "20:00"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "06:30",
+                "end": "07:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "07:30",
+                "end": "08:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "11:30",
+                "end": "12:30"
+            },
+            {
+                "days": [
+                    "friday",
+                    "saturday"
+                ],
+                "start": "12:00",
+                "end": "13:00"
+            }
+        ]
+    },
+    {
+        "name": "Spinning",
+        "cat": "fitness",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "06:30",
+                "end": "07:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "06:30",
+                "end": "07:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "07:30",
+                "end": "08:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "saturday",
+                    "sunday"
+                ],
+                "start": "08:00",
+                "end": "10:00"
+            }
+        ]
+    },
+    {
+        "name": "Step Box",
+        "cat": "fitness",
+        "age_label": "Adultos",
+        "min_age": 18,
+        "schedules": [
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            }
+        ]
+    },
+    {
+        "name": "Stretching",
+        "cat": "bienestar",
+        "age_label": "Adultos",
+        "min_age": 18,
+        "schedules": [
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "07:30",
+                "end": "09:00"
+            }
+        ]
+    },
+    {
+        "name": "Taebo",
+        "cat": "fitness",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "09:00",
+                "end": "11:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            },
+            {
+                "days": [
+                    "saturday",
+                    "sunday"
+                ],
+                "start": "10:00",
+                "end": "11:00"
+            }
+        ]
+    },
+    {
+        "name": "Taekwondo",
+        "cat": "artes_marciales",
+        "age_label": "Niños",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Tenis Niños",
+        "cat": "deportes",
+        "schedules": [
+            {
+                "age": "Niños",
+                "min_age": 6,
+                "max_age": 15,
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "TRX",
+        "cat": "fitness",
+        "min_age": 14,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "07:30",
+                "end": "08:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "08:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "18:00",
+                "end": "19:00"
+            }
+        ]
+    },
+    {
+        "name": "Voleibol",
+        "cat": "deportes",
+        "age_label": "Niños",
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "thursday"
+                ],
+                "start": "17:00",
+                "end": "22:00"
+            }
+        ]
+    },
+    {
+        "name": "Yoga",
+        "cat": "bienestar",
+        "age_label": "Jóvenes y adultos",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday"
+                ],
+                "start": "07:30",
+                "end": "09:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "11:30",
+                "end": "13:00"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "19:00",
+                "end": "21:00"
+            },
+            {
+                "days": [
+                    "monday",
+                    "wednesday"
+                ],
+                "start": "18:00",
+                "end": "20:00"
+            },
+            {
+                "days": [
+                    "saturday"
+                ],
+                "start": "08:30",
+                "end": "10:30"
+            }
+        ]
+    },
+    {
+        "name": "Yoga Fit",
+        "cat": "bienestar",
+        "min_age": 15,
+        "schedules": [
+            {
+                "days": [
+                    "monday",
+                    "wednesday",
+                    "friday"
+                ],
+                "start": "09:30",
+                "end": "10:30"
+            },
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "10:30",
+                "end": "11:30"
+            },
+            {
+                "days": [
+                    "saturday"
+                ],
+                "start": "12:00",
+                "end": "13:00"
+            }
+        ]
+    },
+    {
+        "name": "Yoga Kids",
+        "cat": "bienestar",
+        "max_age": 14,
+        "schedules": [
+            {
+                "days": [
+                    "tuesday",
+                    "thursday"
+                ],
+                "start": "16:00",
+                "end": "18:00"
+            }
+        ]
+    }
+]

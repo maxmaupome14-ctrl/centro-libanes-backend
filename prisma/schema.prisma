@@ -443,3 +443,19 @@ model Notification {
   sent_at        DateTime?
   created_at     DateTime            @default(now())
 }
+
+model ClubEvent {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  category     String    @default("general")
+  event_date   DateTime
+  end_date     DateTime?
+  location     String?
+  image_color  String?   // gradient color for the card, e.g. "#007A4A"
+  is_published Boolean   @default(true)
+  is_featured  Boolean   @default(false)
+  created_by   String?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+}
