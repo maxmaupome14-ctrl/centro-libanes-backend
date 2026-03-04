@@ -431,17 +431,19 @@ model ActivityEnrollment {
 }
 
 model Notification {
-  id             String              @id @default(uuid())
+  id             String    @id @default(uuid())
   recipient_id   String
   recipient_type String
-  channel String @default("push")
+  channel        String    @default("push")
   type           String
   title          String
   body           String
   data           String?
-  status String @default("pending")
+  status         String    @default("pending")
+  is_read        Boolean   @default(false)
+  read_at        DateTime?
   sent_at        DateTime?
-  created_at     DateTime            @default(now())
+  created_at     DateTime  @default(now())
 }
 
 model ClubEvent {
