@@ -166,7 +166,7 @@ router.post('/staff-login', async (req, res) => {
 
         return res.json({
             token,
-            staff: { ...tokenPayload, unit_name: staff.unit?.name || '' },
+            staff: { ...tokenPayload, unit_name: staff.unit?.name || '', employment_type: staff.employment_type },
         });
     } catch (error: any) {
         return res.status(500).json({ error: error.message || 'Error de autenticación' });

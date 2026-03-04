@@ -12,6 +12,7 @@ import profileRoutes from './routes/profile.routes';
 import enrollmentRoutes from './routes/enrollment.routes';
 import eventsRoutes from './routes/events.routes';
 import notificationRoutes from './routes/notification.routes';
+import staffRoutes from './routes/staff.routes';
 import { setupCronJobs } from './cron/jobs';
 
 dotenv.config();
@@ -35,6 +36,7 @@ app.use('/api/lockers', lockerRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/staff', staffRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/health', (req, res) => {
