@@ -282,6 +282,8 @@ async function main() {
         { name: 'Diego Mendoza', role: 'instructor_natacion', employment_type: 'nomina', unit_id: fredy.id, schedule_template: weekdaySchedule('06:30', '14:00') },
         { name: 'Alejandra Ruiz', role: 'instructor_fitness', employment_type: 'nomina', unit_id: fredy.id, schedule_template: weekdaySchedule('06:00', '14:00') },
         { name: 'Iván Castillo', role: 'instructor_fitness', employment_type: 'nomina', unit_id: fredy.id, schedule_template: weekdaySchedule('14:00', '22:00') },
+        // Admin
+        { name: 'Admin Centro', role: 'administrador', employment_type: 'nomina', unit_id: hermes.id, schedule_template: weekdaySchedule('08:00', '17:00') },
     ];
 
     const createdStaff = [];
