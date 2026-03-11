@@ -149,8 +149,8 @@ router.post('/staff-login', async (req, res) => {
             const valid = await bcrypt.compare(password, (staff as any).password_hash);
             if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
         } else {
-            // Dev fallback - accept 'staff123'
-            if (password !== 'staff123') return res.status(401).json({ error: 'Contraseña incorrecta' });
+            // Dev fallback - accept '1234'
+            if (password !== '1234') return res.status(401).json({ error: 'Contraseña incorrecta' });
         }
 
         const tokenPayload = {

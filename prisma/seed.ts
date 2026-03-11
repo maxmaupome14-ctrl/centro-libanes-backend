@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import * as bcrypt from 'bcryptjs'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -360,6 +361,36 @@ async function main() {
     console.log('  ✓ Membership 31505 with 4 profiles');
 
     // ══════════════════════════════════════════
+    // 7b. MEMBERSHIP & PROFILE — Michele Kuri Hanud (0001)
+    // ══════════════════════════════════════════
+    const michelePassword = await bcrypt.hash('1234', 12);
+    const membershipMichele = await prisma.membership.create({
+        data: {
+            member_number: 1,
+            tier: 'platino',
+            status: 'activa',
+            join_date: new Date('2010-01-01'),
+            monthly_fee: 4850,
+            next_payment_date: new Date('2026-04-10'),
+            profiles: {
+                create: [
+                    {
+                        first_name: 'Michele', last_name: 'Kuri Hanud',
+                        date_of_birth: new Date('1975-06-15'),
+                        role: 'titular', is_minor: false, is_active: true,
+                        email: 'michele.kuri@centrolibanes.com',
+                        phone: '5550000001',
+                        auth_user_id: 'auth_michele_001',
+                        password_hash: michelePassword,
+                        permissions: JSON.stringify(titularPermissions),
+                    }
+                ]
+            }
+        }
+    });
+    console.log('  ✓ Membership 0001 — Michele Kuri Hanud (titular)');
+
+    // ══════════════════════════════════════════
     // 8. LOCKERS (4 zones per unit)
     // ══════════════════════════════════════════
     const lockerZones = ['vestidores_principales', 'zona_spa', 'alberca', 'gimnasio'];
@@ -408,6 +439,25 @@ async function main() {
             due_date: new Date(now.getFullYear(), now.getMonth(), 10),
             grace_deadline: new Date(now.getFullYear(), now.getMonth(), 20),
             status: 'pendiente',
+        }
+    });
+    // Michele's maintenance billing
+    await prisma.maintenanceBilling.create({
+        data: {
+            membership_id: membershipMichele.id, period: prevPeriod,
+            amount: 4850,
+            due_date: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 10),
+            grace_deadline: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 20),
+            status: 'pagado',
+        }
+    });
+    await prisma.maintenanceBilling.create({
+        data: {
+            membership_id: membershipMichele.id, period: currentPeriod,
+            amount: 4850,
+            due_date: new Date(now.getFullYear(), now.getMonth(), 10),
+            grace_deadline: new Date(now.getFullYear(), now.getMonth(), 20),
+            status: 'pagado',
         }
     });
     console.log('  ✓ Maintenance billing (prev paid + current pending)');
