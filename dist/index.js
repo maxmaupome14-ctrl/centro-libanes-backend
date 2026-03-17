@@ -52,6 +52,17 @@ app.use('/api/cms', cms_routes_1.default);
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'centro-libanes-api' });
 });
+// Weather proxy — avoids CORS issues when frontend is on Vercel
+app.get('/api/weather', async (req, res) => {
+    try {
+        const resp = await fetch('https://wttr.in/19.4326,-99.1332?format=j1');
+        const data = await resp.json();
+        res.json(data);
+    }
+    catch {
+        res.status(502).json({ error: 'Weather service unavailable' });
+    }
+});
 app.listen(port, () => {
     console.log(`[server]: Centro Libanes Backend is running at http://localhost:${port}`);
     (0, jobs_1.setupCronJobs)();
