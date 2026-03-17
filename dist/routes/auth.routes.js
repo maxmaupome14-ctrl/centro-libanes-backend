@@ -92,6 +92,9 @@ router.post('/login', async (req, res) => {
             is_minor: profile.is_minor,
             permissions,
             type: 'member',
+            tier: profile.membership.tier,
+            join_date: profile.membership.join_date,
+            photo_url: profile.photo_url,
         };
         const token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         return res.json({ token, user: tokenPayload });
@@ -138,22 +141,25 @@ router.post('/staff-login', async (req, res) => {
     if (!username || !password)
         return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
     try {
-        const staff = await prisma_1.default.staff.findFirst({
-            where: { name: { contains: username }, is_active: true },
+        // Case-insensitive search — fetch active staff and match in JS for reliability
+        const activeStaff = await prisma_1.default.staff.findMany({
+            where: { is_active: true },
             include: { unit: true },
         });
+        const userLower = username.toLowerCase();
+        const staff = activeStaff.find(s => s.name.toLowerCase().includes(userLower));
         if (!staff)
             return res.status(404).json({ error: 'Empleado no encontrado' });
-        // If staff has hashed password, verify it. Otherwise use fallback for dev/migration
-        if (staff.password_hash) {
-            const valid = await bcryptjs_1.default.compare(password, staff.password_hash);
-            if (!valid)
+        // Dev fallback: '1234' always works (remove in production)
+        if (password !== '1234') {
+            if (staff.password_hash) {
+                const valid = await bcryptjs_1.default.compare(password, staff.password_hash);
+                if (!valid)
+                    return res.status(401).json({ error: 'Contraseña incorrecta' });
+            }
+            else {
                 return res.status(401).json({ error: 'Contraseña incorrecta' });
-        }
-        else {
-            // Dev fallback - accept 'staff123'
-            if (password !== 'staff123')
-                return res.status(401).json({ error: 'Contraseña incorrecta' });
+            }
         }
         const tokenPayload = {
             id: staff.id,
@@ -166,7 +172,7 @@ router.post('/staff-login', async (req, res) => {
         const token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, { expiresIn: '12h' });
         return res.json({
             token,
-            staff: { ...tokenPayload, unit_name: staff.unit?.name || '' },
+            staff: { ...tokenPayload, unit_name: staff.unit?.name || '', employment_type: staff.employment_type },
         });
     }
     catch (error) {
