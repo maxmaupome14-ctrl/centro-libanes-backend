@@ -10,6 +10,15 @@ const router = (0, express_1.Router)();
 // GET /api/profile/me - current user's profile + membership summary
 router.get('/me', auth_1.requireAuth, async (req, res) => {
     const user = req.user;
+    // Staff users get a minimal profile response
+    if (user.type === 'staff') {
+        return res.json({
+            id: user.id,
+            name: user.name,
+            role: user.role,
+            type: 'staff',
+        });
+    }
     try {
         const profile = await prisma_1.default.memberProfile.findUnique({
             where: { id: user.id },

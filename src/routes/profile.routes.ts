@@ -8,6 +8,16 @@ const router = Router();
 router.get('/me', requireAuth, async (req: any, res: any) => {
     const user = req.user;
 
+    // Staff users get a minimal profile response
+    if (user.type === 'staff') {
+        return res.json({
+            id: user.id,
+            name: user.name,
+            role: user.role,
+            type: 'staff',
+        });
+    }
+
     try {
         const profile = await prisma.memberProfile.findUnique({
             where: { id: user.id },

@@ -16,6 +16,17 @@ const requireAuth = async (req, res, next) => {
         return res.status(401).json({ error: 'No token provided' });
     try {
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        // Staff tokens: attach minimal user object and continue
+        if (decoded.type === 'staff') {
+            const staff = await prisma_1.default.staff.findUnique({
+                where: { id: decoded.id },
+            });
+            if (!staff || !staff.is_active) {
+                return res.status(401).json({ error: 'Staff inactivo o no encontrado' });
+            }
+            req.user = { id: staff.id, name: staff.name, role: staff.role, type: 'staff' };
+            return next();
+        }
         const profile = await prisma_1.default.memberProfile.findUnique({
             where: { id: decoded.id },
             include: { membership: true },
@@ -38,7 +49,7 @@ const requireAuth = async (req, res, next) => {
         catch {
             permissions = {};
         }
-        req.user = { ...profile, membership_id: profile.membership_id, parsedPermissions: permissions };
+        req.user = { ...profile, membership_id: profile.membership_id, parsedPermissions: permissions, type: 'member' };
         next();
     }
     catch (e) {

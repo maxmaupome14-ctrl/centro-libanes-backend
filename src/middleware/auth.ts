@@ -13,6 +13,18 @@ export const requireAuth = async (req: any, res: any, next: any) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as any;
 
+        // Staff tokens: attach minimal user object and continue
+        if (decoded.type === 'staff') {
+            const staff = await prisma.staff.findUnique({
+                where: { id: decoded.id },
+            });
+            if (!staff || !staff.is_active) {
+                return res.status(401).json({ error: 'Staff inactivo o no encontrado' });
+            }
+            req.user = { id: staff.id, name: staff.name, role: staff.role, type: 'staff' };
+            return next();
+        }
+
         const profile = await prisma.memberProfile.findUnique({
             where: { id: decoded.id },
             include: { membership: true },
@@ -38,7 +50,7 @@ export const requireAuth = async (req: any, res: any, next: any) => {
             permissions = {};
         }
 
-        req.user = { ...profile, membership_id: profile.membership_id, parsedPermissions: permissions };
+        req.user = { ...profile, membership_id: profile.membership_id, parsedPermissions: permissions, type: 'member' };
         next();
     } catch (e: any) {
         if (e.name === 'TokenExpiredError') return res.status(401).json({ error: 'Token expirado' });
