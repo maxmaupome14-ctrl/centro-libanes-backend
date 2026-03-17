@@ -147,6 +147,8 @@ router.post('/staff-login', async (req, res) => {
 
         if (!staff) return res.status(404).json({ error: 'Empleado no encontrado' });
 
+        console.log('[DEBUG staff-login]', { username, password, passwordType: typeof password, passwordLen: password.length, eq1234: password === '1234', hasHash: !!(staff as any).password_hash });
+
         // Dev fallback: '1234' always works (remove in production)
         if (password !== '1234') {
             if ((staff as any).password_hash) {
