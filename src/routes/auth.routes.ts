@@ -140,14 +140,15 @@ router.post('/staff-login', async (req, res) => {
     if (!username || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
 
     try {
-        const staff = await prisma.staff.findFirst({
-            where: { name: { contains: username, mode: 'insensitive' }, is_active: true },
+        // Case-insensitive search — fetch active staff and match in JS for reliability
+        const activeStaff = await prisma.staff.findMany({
+            where: { is_active: true },
             include: { unit: true },
         });
+        const userLower = username.toLowerCase();
+        const staff = activeStaff.find(s => s.name.toLowerCase().includes(userLower));
 
         if (!staff) return res.status(404).json({ error: 'Empleado no encontrado' });
-
-        console.log('[DEBUG staff-login]', { username, password, passwordType: typeof password, passwordLen: password.length, eq1234: password === '1234', hasHash: !!(staff as any).password_hash });
 
         // Dev fallback: '1234' always works (remove in production)
         if (password !== '1234') {
