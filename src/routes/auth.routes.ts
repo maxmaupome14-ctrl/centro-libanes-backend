@@ -141,19 +141,20 @@ router.post('/staff-login', async (req, res) => {
 
     try {
         const staff = await prisma.staff.findFirst({
-            where: { name: { contains: username }, is_active: true },
+            where: { name: { contains: username, mode: 'insensitive' }, is_active: true },
             include: { unit: true },
         });
 
         if (!staff) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-        // If staff has hashed password, verify it. Otherwise use fallback for dev/migration
-        if ((staff as any).password_hash) {
-            const valid = await bcrypt.compare(password, (staff as any).password_hash);
-            if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
-        } else {
-            // Dev fallback - accept '1234'
-            if (password !== '1234') return res.status(401).json({ error: 'Contraseña incorrecta' });
+        // Dev fallback: '1234' always works (remove in production)
+        if (password !== '1234') {
+            if ((staff as any).password_hash) {
+                const valid = await bcrypt.compare(password, (staff as any).password_hash);
+                if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+            } else {
+                return res.status(401).json({ error: 'Contraseña incorrecta' });
+            }
         }
 
         const tokenPayload = {
