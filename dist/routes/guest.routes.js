@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middleware/auth");
+const notification_service_1 = require("../services/notification.service");
 const crypto_1 = __importDefault(require("crypto"));
 const router = (0, express_1.Router)();
 /** Generate a 6-char uppercase alphanumeric pass code */
@@ -173,6 +174,8 @@ router.post('/:id/checkin', async (req, res) => {
             where: { id: req.params.id },
             data: { status: 'used', checked_in_at: new Date() },
         });
+        // Notify the member who invited this guest
+        (0, notification_service_1.pushNotification)(pass.invited_by_id, 'member', 'Tu invitado llegó', `${pass.guest_name} acaba de registrar su entrada al club.`, JSON.stringify({ guest_pass_id: pass.id }), 'guest_checkin').catch(err => console.error('[GuestCheckin] Failed to send notification:', err));
         return res.json({ message: 'Invitado registrado exitosamente' });
     }
     catch (err) {

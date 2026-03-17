@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { pushNotification } from '../services/notification.service';
 import crypto from 'crypto';
 
 const router = Router();
@@ -179,6 +180,16 @@ router.post('/:id/checkin', async (req, res) => {
             where: { id: req.params.id },
             data: { status: 'used', checked_in_at: new Date() },
         });
+
+        // Notify the member who invited this guest
+        pushNotification(
+            pass.invited_by_id,
+            'member',
+            'Tu invitado llegó',
+            `${pass.guest_name} acaba de registrar su entrada al club.`,
+            JSON.stringify({ guest_pass_id: pass.id }),
+            'guest_checkin'
+        ).catch(err => console.error('[GuestCheckin] Failed to send notification:', err));
 
         return res.json({ message: 'Invitado registrado exitosamente' });
     } catch (err: any) {

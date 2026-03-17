@@ -9,13 +9,13 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 /**
  * Handles cross-channel notifications (Push, Email, SMS)
  */
-async function pushNotification(recipient_id, recipient_type, title, body, data) {
+async function pushNotification(recipient_id, recipient_type, title, body, data, type = 'system_alert') {
     const notification = await prisma_1.default.notification.create({
         data: {
             recipient_id,
             recipient_type,
             channel: 'push',
-            type: 'system_alert',
+            type,
             title,
             body,
             data: data || null,

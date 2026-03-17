@@ -8,14 +8,15 @@ export async function pushNotification(
     recipient_type: string,
     title: string,
     body: string,
-    data?: string
+    data?: string,
+    type: string = 'system_alert'
 ) {
     const notification = await prisma.notification.create({
         data: {
             recipient_id,
             recipient_type,
             channel: 'push',
-            type: 'system_alert',
+            type,
             title,
             body,
             data: data || null,
