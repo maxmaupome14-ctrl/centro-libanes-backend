@@ -13,6 +13,11 @@ import enrollmentRoutes from './routes/enrollment.routes';
 import eventsRoutes from './routes/events.routes';
 import notificationRoutes from './routes/notification.routes';
 import staffRoutes from './routes/staff.routes';
+import tournamentRoutes from './routes/tournament.routes';
+import guestRoutes from './routes/guest.routes';
+import waitlistRoutes from './routes/waitlist.routes';
+import ratingRoutes from './routes/rating.routes';
+import cmsRoutes from './routes/cms.routes';
 import { setupCronJobs } from './cron/jobs';
 
 dotenv.config();
@@ -38,6 +43,11 @@ app.use('/api/events', eventsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/guests', guestRoutes);
+app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/cms', cmsRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'centro-libanes-api' });

@@ -92,6 +92,9 @@ router.post('/login', async (req, res) => {
             is_minor: profile.is_minor,
             permissions,
             type: 'member',
+            tier: profile.membership.tier,
+            join_date: profile.membership.join_date,
+            photo_url: profile.photo_url,
         };
 
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as any);

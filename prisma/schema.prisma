@@ -91,6 +91,7 @@ model Unit {
   lockers      Locker[]
   resources    Resource[]
   reservations Reservation[] // for units that hold reservations
+  tournaments  Tournament[]
 }
 
 model SystemConfig {
@@ -129,6 +130,7 @@ model Membership {
   locker_rentals    LockerRental[]
   reservations      Reservation[]
   enrollments       ActivityEnrollment[]
+  waitlist_entries  Waitlist[]
 }
 
 model MemberProfile {
@@ -160,9 +162,13 @@ model MemberProfile {
   reservations_booked   Reservation[] @relation("BookedByReservations")
   reservations_approved Reservation[] @relation("ApprovedByReservations")
 
-  payments       Payment[]
-  locker_rentals LockerRental[]
-  enrollments    ActivityEnrollment[]
+  payments            Payment[]
+  locker_rentals      LockerRental[]
+  enrollments         ActivityEnrollment[]
+  tournament_players  TournamentPlayer[]
+  guest_passes        GuestPass[]
+  waitlist_entries    Waitlist[]
+  ratings             Rating[]
 }
 
 model Staff {
@@ -461,4 +467,209 @@ model ClubEvent {
   created_by   String?
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------
+// RATINGS & REVIEWS
+// ---------------------------------------------------------
+
+model Rating {
+  id             String    @id @default(uuid())
+  profile_id     String
+  reservation_id String?   // link to the reservation that prompted this
+  // What is being rated:
+  staff_id       String?
+  service_id     String?
+  resource_type  String?   // "cancha_padel", etc.
+  activity_id    String?
+  score          Int       // 1-5 stars
+  comment        String?
+  is_anonymous   Boolean   @default(false)
+  created_at     DateTime  @default(now())
+
+  profile MemberProfile @relation(fields: [profile_id], references: [id])
+
+  @@unique([profile_id, reservation_id]) // one rating per reservation
+}
+
+// ---------------------------------------------------------
+// WAITLIST
+// ---------------------------------------------------------
+
+model Waitlist {
+  id            String    @id @default(uuid())
+  profile_id    String
+  membership_id String
+  // What they're waiting for:
+  resource_type String?   // e.g. "cancha_padel" — for court waitlists
+  service_id    String?   // for service waitlists
+  activity_id   String?   // for class waitlists
+  date          DateTime  // the specific date
+  time_slot     String    // "10:00" — the specific time
+  position      Int       // position in queue (1 = first)
+  status        String    @default("waiting") // waiting, notified, booked, expired, cancelled
+  notified_at   DateTime?
+  expires_at    DateTime? // window to claim the spot before it goes to next
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  profile    MemberProfile @relation(fields: [profile_id], references: [id])
+  membership Membership    @relation(fields: [membership_id], references: [id])
+
+  @@unique([profile_id, resource_type, date, time_slot])
+  @@unique([profile_id, service_id, date, time_slot])
+  @@unique([profile_id, activity_id, date, time_slot])
+}
+
+// ---------------------------------------------------------
+// GUEST PASSES
+// ---------------------------------------------------------
+
+model GuestPass {
+  id              String    @id @default(uuid())
+  invited_by_id   String    // MemberProfile who invited the guest
+  guest_name      String
+  guest_phone     String?
+  guest_email     String?
+  visit_date      DateTime
+  pass_code       String    @unique // 6-char alphanumeric code for check-in
+  status          String    @default("active") // active, used, expired, cancelled
+  checked_in_at   DateTime?
+  max_guests      Int       @default(1) // how many people this pass covers
+  fee             Decimal   @default(0)
+  notes           String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  invited_by MemberProfile @relation(fields: [invited_by_id], references: [id])
+}
+
+// ---------------------------------------------------------
+// TOURNAMENTS
+// ---------------------------------------------------------
+
+model Tournament {
+  id                    String    @id @default(uuid())
+  unit_id               String
+  name                  String
+  sport                 String    // padel, tenis, squash, natacion, futbol
+  format                String    @default("single_elimination") // single_elimination, double_elimination, round_robin
+  team_size             Int       @default(2) // 1=singles, 2=doubles, 4+=team
+  max_teams             Int
+  registration_fee      Decimal   @default(0)
+  prize_description     String?
+  rules                 String?
+  start_date            DateTime
+  end_date              DateTime?
+  registration_deadline DateTime
+  status                String    @default("draft") // draft, registration_open, in_progress, completed, cancelled
+  current_round         Int       @default(0)
+  image_color           String?   // card gradient color
+  created_by            String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  unit          Unit                    @relation(fields: [unit_id], references: [id])
+  registrations TournamentRegistration[]
+  matches       TournamentMatch[]
+}
+
+model TournamentRegistration {
+  id            String   @id @default(uuid())
+  tournament_id String
+  team_name     String?
+  seed          Int?
+  status        String   @default("registered") // registered, confirmed, eliminated, winner, withdrawn
+  registered_at DateTime @default(now())
+
+  tournament Tournament           @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  players    TournamentPlayer[]
+  matches_a  TournamentMatch[]    @relation("MatchTeamA")
+  matches_b  TournamentMatch[]    @relation("MatchTeamB")
+  wins       TournamentMatch[]    @relation("MatchWinner")
+}
+
+model TournamentPlayer {
+  id              String  @id @default(uuid())
+  registration_id String
+  profile_id      String
+  is_captain      Boolean @default(false)
+
+  registration TournamentRegistration @relation(fields: [registration_id], references: [id], onDelete: Cascade)
+  profile      MemberProfile          @relation(fields: [profile_id], references: [id])
+
+  @@unique([registration_id, profile_id])
+}
+
+model TournamentMatch {
+  id             String    @id @default(uuid())
+  tournament_id  String
+  round          Int       // 1=first round, 2=quarterfinals, etc.
+  match_number   Int       // position within the round
+  team_a_id      String?
+  team_b_id      String?
+  score_a        String?   // "6-4, 7-5" or "21-18"
+  score_b        String?
+  winner_id      String?
+  status         String    @default("pending") // pending, scheduled, in_progress, completed, bye
+  scheduled_date DateTime?
+  scheduled_time String?
+  resource_code  String?   // court assignment (resource code e.g. "cancha_padel_1")
+  played_at      DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  tournament Tournament              @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  team_a     TournamentRegistration? @relation("MatchTeamA", fields: [team_a_id], references: [id])
+  team_b     TournamentRegistration? @relation("MatchTeamB", fields: [team_b_id], references: [id])
+  winner     TournamentRegistration? @relation("MatchWinner", fields: [winner_id], references: [id])
+}
+
+// ---------------------------------------------------------
+// CMS CONTENT
+// ---------------------------------------------------------
+
+model FeaturedItem {
+  id             String   @id @default(uuid())
+  title          String
+  subtitle       String?
+  gradient_start String   @default("#005A36")
+  gradient_end   String   @default("#007A4A")
+  icon           String   @default("dumbbell") // lucide icon name
+  link           String   @default("/reservations")
+  image_url      String?
+  display_order  Int      @default(0)
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+}
+
+model ExploreItem {
+  id               String   @id @default(uuid())
+  name             String
+  icon             String   @default("dumbbell") // lucide icon name
+  color            String   @default("#007A4A")
+  background_color String   @default("rgba(0,122,74,0.08)")
+  link             String   @default("/reservations")
+  display_order    Int      @default(0)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
+
+model Banner {
+  id               String    @id @default(uuid())
+  title            String
+  subtitle         String?
+  background_color String    @default("#007A4A")
+  image_url        String?
+  cta_text         String?
+  cta_link         String?
+  placement        String    @default("home_top") // home_top, home_middle, home_bottom
+  start_date       DateTime?
+  end_date         DateTime?
+  display_order    Int       @default(0)
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 }

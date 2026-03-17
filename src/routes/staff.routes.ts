@@ -4,6 +4,37 @@ import { requireStaffAuth } from '../middleware/auth';
 
 const router = Router();
 
+// GET /api/staff?unit_name=...&service_id=... - public list of active staff
+// If service_id is provided, returns only staff linked to that service via StaffService
+// If only unit_name, returns all active staff in that unit
+router.get('/', async (req: any, res: any) => {
+    try {
+        const { unit_name, service_id } = req.query;
+        const where: any = { is_active: true };
+
+        if (service_id) {
+            // Filter by service — uses the StaffService join table
+            where.services = { some: { service_id: service_id as string } };
+        } else if (unit_name) {
+            const unit = await prisma.unit.findFirst({
+                where: { name: { contains: unit_name as string, mode: 'insensitive' } },
+            });
+            if (unit) where.unit_id = unit.id;
+            else return res.json([]);
+        }
+
+        const staff = await prisma.staff.findMany({
+            where,
+            select: { id: true, name: true, role: true, unit: { select: { name: true, short_name: true } } },
+            orderBy: { name: 'asc' },
+        });
+
+        return res.json(staff);
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // GET /api/staff/me/appointments - today's reservations assigned to this staff member
 router.get('/me/appointments', requireStaffAuth, async (req: any, res: any) => {
     const staff = req.staff;
@@ -73,6 +104,121 @@ router.get('/me/week', requireStaffAuth, async (req: any, res: any) => {
         }
 
         return res.json({ counts });
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/staff/me/earnings - current month earnings & settlement history
+router.get('/me/earnings', requireStaffAuth, async (req: any, res: any) => {
+    const staff = req.staff;
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    try {
+        const staffRecord = await prisma.staff.findUnique({
+            where: { id: staff.id },
+            select: { commission_rate: true, fixed_rent: true, employment_type: true },
+        });
+        if (!staffRecord) return res.status(404).json({ error: 'Staff no encontrado' });
+
+        // Completed reservations this month
+        const reservations = await prisma.reservation.findMany({
+            where: {
+                staff_id: staff.id,
+                status: 'completada',
+                date: { gte: startOfMonth, lte: endOfMonth },
+            },
+            include: {
+                service: { select: { name: true, price: true } },
+                profile: { select: { first_name: true, last_name: true } },
+            },
+            orderBy: { date: 'desc' },
+        });
+
+        const grossRevenue = reservations.reduce((sum, r) => sum + Number(r.service?.price || 0), 0);
+        const rate = staffRecord.commission_rate ? Number(staffRecord.commission_rate) : 0;
+        const fixedRent = staffRecord.fixed_rent ? Number(staffRecord.fixed_rent) : 0;
+
+        let staffPayout = 0;
+        let clubCut = 0;
+        if (fixedRent > 0) {
+            clubCut = fixedRent;
+            staffPayout = grossRevenue - fixedRent;
+        } else if (rate > 0) {
+            staffPayout = grossRevenue * rate;
+            clubCut = grossRevenue - staffPayout;
+        }
+
+        // Recent settlements
+        const settlements = await prisma.staffSettlement.findMany({
+            where: { staff_id: staff.id },
+            orderBy: { created_at: 'desc' },
+            take: 6,
+        });
+
+        const services = reservations.map(r => ({
+            id: r.id,
+            service: r.service?.name || 'Servicio',
+            client: `${r.profile.first_name} ${r.profile.last_name}`,
+            price: Number(r.service?.price || 0),
+            date: r.date,
+        }));
+
+        return res.json({
+            employment_type: staffRecord.employment_type,
+            commission_rate: rate,
+            fixed_rent: fixedRent,
+            period: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+            month_services: reservations.length,
+            month_gross: grossRevenue,
+            month_club_cut: clubCut,
+            month_payout: staffPayout,
+            services,
+            settlements: settlements.map(s => ({
+                id: s.id,
+                period_start: s.period_start,
+                period_end: s.period_end,
+                total_services: s.total_services,
+                gross_revenue: Number(s.gross_revenue),
+                staff_payout: Number(s.staff_payout),
+                status: s.status,
+                paid_at: s.paid_at,
+            })),
+        });
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// PATCH /api/staff/me/appointments/:id/status - update reservation status (complete, no-show)
+router.patch('/me/appointments/:id/status', requireStaffAuth, async (req: any, res: any) => {
+    const staff = req.staff;
+    const { status } = req.body;
+    const allowed = ['completada', 'no_show', 'confirmada'];
+
+    if (!allowed.includes(status)) {
+        return res.status(400).json({ error: `Estado inválido. Opciones: ${allowed.join(', ')}` });
+    }
+
+    try {
+        const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id } });
+
+        if (!reservation || reservation.staff_id !== staff.id) {
+            return res.status(404).json({ error: 'Cita no encontrada' });
+        }
+
+        if (['cancelada', 'completada', 'no_show'].includes(reservation.status)) {
+            return res.status(400).json({ error: 'Esta cita ya no puede modificarse' });
+        }
+
+        const updated = await prisma.reservation.update({
+            where: { id: req.params.id },
+            data: { status },
+        });
+
+        return res.json({ id: updated.id, status: updated.status });
     } catch (err: any) {
         return res.status(500).json({ error: err.message });
     }

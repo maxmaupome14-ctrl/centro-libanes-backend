@@ -2,9 +2,128 @@ import { Router } from 'express';
 import { addMinutes } from 'date-fns';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
-import { checkSpendingLimit } from '../services/reservation.service';
+import { checkSpendingLimit, getAvailableSlots, getCanchaSlots } from '../services/reservation.service';
 
 const router = Router();
+
+// GET /api/reservations/slots?resource_id=X&service_id=X&date=YYYY-MM-DD
+// Returns all time slots with availability status: available / limited / full
+router.get('/slots', requireAuth, async (req: any, res: any) => {
+    try {
+        const { resource_id, service_id, date } = req.query;
+        if (!date) return res.status(400).json({ error: 'Falta parámetro date' });
+
+        const dateStr = date as string;
+
+        // ── Resource (court) slots ──
+        if (resource_id) {
+            const resource = await prisma.resource.findUnique({
+                where: { id: resource_id as string },
+                include: { unit: true },
+            });
+            if (!resource) return res.status(404).json({ error: 'Recurso no encontrado' });
+
+            // Get unit operating hours for the day
+            let operatingHours: any = {};
+            if (resource.unit.operating_hours) {
+                try { operatingHours = JSON.parse(resource.unit.operating_hours); } catch {}
+            }
+            const targetDate = new Date(dateStr);
+            const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            const dayHours = operatingHours[dayName];
+            const openTime = dayHours?.open || '07:00';
+            const closeTime = dayHours?.close || '22:00';
+
+            // Generate all possible 60-min slots
+            const allSlots: string[] = [];
+            const [openH, openM] = openTime.split(':').map(Number);
+            const [closeH, closeM] = closeTime.split(':').map(Number);
+            let mins = openH * 60 + openM;
+            const endMins = closeH * 60 + closeM;
+            while (mins + 60 <= endMins) {
+                const h = Math.floor(mins / 60);
+                const m = mins % 60;
+                allSlots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                mins += 60;
+            }
+
+            // Count how many same-type resources exist (for "limited" calculation)
+            const sameTypeResources = await prisma.resource.findMany({
+                where: { type: resource.type, unit_id: resource.unit_id, is_active: true },
+            });
+            const totalCourts = sameTypeResources.length;
+            const sameTypeCodes = sameTypeResources.map(r => r.code);
+
+            // For each slot, count bookings across ALL same-type resources
+            const slots = await Promise.all(allSlots.map(async (time) => {
+                const slotStart = new Date(`${dateStr}T${time}:00`);
+                const slotEnd = addMinutes(slotStart, 60);
+
+                const bookedCount = await prisma.reservation.count({
+                    where: {
+                        resource_id: { in: sameTypeCodes },
+                        date: targetDate,
+                        status: { in: ['confirmada', 'en_curso', 'pendiente_aprobacion'] },
+                        start_time: { lt: slotEnd },
+                        end_time: { gt: slotStart },
+                    },
+                });
+
+                const available = totalCourts - bookedCount;
+                let status: 'available' | 'limited' | 'full' = 'available';
+                if (available <= 0) status = 'full';
+                else if (available <= Math.ceil(totalCourts * 0.3)) status = 'limited';
+
+                return { time, status, available, total: totalCourts };
+            }));
+
+            return res.json({ type: 'resource', resource_id, date: dateStr, slots });
+        }
+
+        // ── Service slots (spa, barberia) ──
+        if (service_id) {
+            const service = await prisma.service.findUnique({
+                where: { id: service_id as string },
+                include: { staff: { include: { staff: true } } },
+            });
+            if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
+
+            // Use existing service to get per-staff availability
+            const staffSlots = await getAvailableSlots(service_id as string, dateStr);
+
+            // Merge all staff slots into a unified timeline
+            const allTimes = new Set<string>();
+            for (const s of staffSlots) {
+                for (const t of s.slots) allTimes.add(t);
+            }
+
+            // For each time, count how many staff members are available
+            const totalStaff = service.staff.filter(s => s.staff.is_active).length;
+            const slots = Array.from(allTimes).sort().map(time => {
+                const staffAvailable = staffSlots.filter(s => s.slots.includes(time)).length;
+                let status: 'available' | 'limited' | 'full' = 'available';
+                if (staffAvailable <= 0) status = 'full';
+                else if (staffAvailable === 1 && totalStaff > 1) status = 'limited';
+
+                return {
+                    time,
+                    status,
+                    available: staffAvailable,
+                    total: totalStaff,
+                    staff: staffSlots
+                        .filter(s => s.slots.includes(time))
+                        .map(s => ({ id: s.staff_id, name: s.staff_name })),
+                };
+            });
+
+            return res.json({ type: 'service', service_id, date: dateStr, slots });
+        }
+
+        return res.status(400).json({ error: 'Se requiere resource_id o service_id' });
+    } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+    }
+});
 
 // GET /api/reservations/user - upcoming reservations for current profile
 router.get('/user', requireAuth, async (req: any, res: any) => {
