@@ -384,7 +384,7 @@ router.post('/:id/cancel', requireAuth, async (req: any, res: any) => {
             data: {
                 status: 'cancelada',
                 cancelled_at: new Date(),
-                cancellation_reason: req.body.reason || 'Cancelada por el usuario',
+                cancellation_reason: req.body?.reason || 'Cancelada por el usuario',
             },
         });
 
