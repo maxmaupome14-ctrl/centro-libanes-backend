@@ -7,6 +7,7 @@ const express_1 = require("express");
 const stripe_1 = __importDefault(require("stripe"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middleware/auth");
+const notification_service_1 = require("../services/notification.service");
 const router = (0, express_1.Router)();
 const stripe = process.env.STRIPE_SECRET_KEY
     ? new stripe_1.default(process.env.STRIPE_SECRET_KEY)
@@ -177,11 +178,35 @@ router.post('/:id/confirm', auth_1.requireAuth, async (req, res) => {
             where: { id },
             data: { status: 'completado', gateway_txn_id: gateway_txn_id || payment.gateway_txn_id },
         });
-        if (payment.type === 'mantenimiento' && payment.reference_id) {
-            await prisma_1.default.maintenanceBilling.update({
-                where: { id: payment.reference_id },
-                data: { status: 'pagado', payment_id: payment.id }
+        let membership_status;
+        if (payment.type === 'mantenimiento') {
+            // Marca pagados los recibos que cubre este pago: el referenciado primero, luego los más antiguos
+            const bills = await prisma_1.default.maintenanceBilling.findMany({
+                where: { membership_id: payment.membership_id, status: { in: ['pendiente', 'vencido'] } },
+                orderBy: { due_date: 'asc' },
             });
+            const ordered = bills.filter(b => b.id === payment.reference_id).concat(bills.filter(b => b.id !== payment.reference_id));
+            let budget = Number(payment.amount);
+            for (const bill of ordered) {
+                const amt = Number(bill.amount);
+                if (bill.id === payment.reference_id || budget >= amt) {
+                    await prisma_1.default.maintenanceBilling.update({ where: { id: bill.id }, data: { status: 'pagado', payment_id: payment.id } });
+                    budget -= amt;
+                }
+            }
+            const remaining = await prisma_1.default.maintenanceBilling.count({
+                where: { membership_id: payment.membership_id, status: { in: ['pendiente', 'vencido'] } },
+            });
+            if (remaining === 0) {
+                const m = await prisma_1.default.membership.findUnique({ where: { id: payment.membership_id } });
+                if (m && m.status !== 'activa') {
+                    await prisma_1.default.membership.update({ where: { id: payment.membership_id }, data: { status: 'activa' } });
+                    if (payment.profile_id) {
+                        await (0, notification_service_1.pushNotification)(payment.profile_id, 'member', 'Membresía reactivada', 'Tu mantenimiento quedó al corriente. ¡Bienvenido de vuelta al club!', undefined, 'membership_reactivated');
+                    }
+                }
+                membership_status = 'activa';
+            }
         }
         if (payment.type === 'locker' && payment.reference_id) {
             await prisma_1.default.lockerRental.update({
@@ -189,7 +214,7 @@ router.post('/:id/confirm', auth_1.requireAuth, async (req, res) => {
                 data: { payment_id: payment.id }
             });
         }
-        return res.json({ message: 'Pago confirmado', payment: updated });
+        return res.json({ message: 'Pago confirmado', payment: updated, membership_status });
     }
     catch (err) {
         return res.status(400).json({ error: err.message });

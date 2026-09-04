@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { pushNotification } from '../services/notification.service';
 
 const router = Router();
 
@@ -193,11 +194,35 @@ router.post('/:id/confirm', requireAuth, async (req, res) => {
             data: { status: 'completado', gateway_txn_id: gateway_txn_id || payment.gateway_txn_id },
         });
 
-        if (payment.type === 'mantenimiento' && payment.reference_id) {
-            await prisma.maintenanceBilling.update({
-                where: { id: payment.reference_id },
-                data: { status: 'pagado', payment_id: payment.id }
+        let membership_status: string | undefined;
+        if (payment.type === 'mantenimiento') {
+            // Marca pagados los recibos que cubre este pago: el referenciado primero, luego los más antiguos
+            const bills = await prisma.maintenanceBilling.findMany({
+                where: { membership_id: payment.membership_id, status: { in: ['pendiente', 'vencido'] } },
+                orderBy: { due_date: 'asc' },
             });
+            const ordered = bills.filter(b => b.id === payment.reference_id).concat(bills.filter(b => b.id !== payment.reference_id));
+            let budget = Number(payment.amount);
+            for (const bill of ordered) {
+                const amt = Number(bill.amount);
+                if (bill.id === payment.reference_id || budget >= amt) {
+                    await prisma.maintenanceBilling.update({ where: { id: bill.id }, data: { status: 'pagado', payment_id: payment.id } });
+                    budget -= amt;
+                }
+            }
+            const remaining = await prisma.maintenanceBilling.count({
+                where: { membership_id: payment.membership_id, status: { in: ['pendiente', 'vencido'] } },
+            });
+            if (remaining === 0) {
+                const m = await prisma.membership.findUnique({ where: { id: payment.membership_id } });
+                if (m && m.status !== 'activa') {
+                    await prisma.membership.update({ where: { id: payment.membership_id }, data: { status: 'activa' } });
+                    if (payment.profile_id) {
+                        await pushNotification(payment.profile_id, 'member', 'Membresía reactivada', 'Tu mantenimiento quedó al corriente. ¡Bienvenido de vuelta al club!', undefined, 'membership_reactivated');
+                    }
+                }
+                membership_status = 'activa';
+            }
         }
 
         if (payment.type === 'locker' && payment.reference_id) {
@@ -207,7 +232,7 @@ router.post('/:id/confirm', requireAuth, async (req, res) => {
             });
         }
 
-        return res.json({ message: 'Pago confirmado', payment: updated });
+        return res.json({ message: 'Pago confirmado', payment: updated, membership_status });
     } catch (err: any) {
         return res.status(400).json({ error: err.message });
     }

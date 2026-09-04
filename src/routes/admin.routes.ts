@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { requireStaffAuth, requireAdminRole } from '../middleware/auth';
+import { pushNotification } from '../services/notification.service';
 
 const router = Router();
 
@@ -515,6 +516,74 @@ router.post('/qr/validate', async (req: any, res: any) => {
             titular: titular ? `${titular.first_name} ${titular.last_name}` : 'N/A',
             message: isActive ? 'Acceso permitido' : 'Membresía suspendida — verificar en caja',
         });
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/admin/memberships?status=suspendida — membresías con su adeudo (para caja y administración)
+router.get('/memberships', async (req: any, res: any) => {
+    try {
+        const where: any = {};
+        if (req.query.status) where.status = String(req.query.status);
+        const list = await prisma.membership.findMany({
+            where,
+            include: {
+                profiles: { where: { role: 'titular', is_active: true }, select: { first_name: true, last_name: true, phone: true }, take: 1 },
+                maintenance_bills: { where: { status: { in: ['pendiente', 'vencido'] } }, orderBy: { due_date: 'asc' } },
+            },
+            orderBy: { member_number: 'asc' },
+            take: 200,
+        });
+        return res.json(list.map(m => ({
+            id: m.id, member_number: m.member_number, tier: m.tier, status: m.status,
+            titular: m.profiles[0] ? m.profiles[0].first_name + ' ' + m.profiles[0].last_name : 'N/A',
+            phone: m.profiles[0]?.phone || null,
+            bills_due: m.maintenance_bills.length,
+            amount_due: m.maintenance_bills.reduce((s, b) => s + Number(b.amount), 0),
+            oldest_due: m.maintenance_bills[0]?.due_date || null,
+        })));
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/admin/memberships/:member_number/regularize — pago en caja: marca el mantenimiento pagado y reactiva
+router.post('/memberships/:member_number/regularize', async (req: any, res: any) => {
+    try {
+        const memberNumber = parseInt(req.params.member_number, 10);
+        if (isNaN(memberNumber)) return res.status(400).json({ error: 'Número de socio inválido' });
+        const membership = await prisma.membership.findUnique({
+            where: { member_number: memberNumber },
+            include: {
+                profiles: { where: { role: 'titular', is_active: true }, select: { id: true, first_name: true }, take: 1 },
+                maintenance_bills: { where: { status: { in: ['pendiente', 'vencido'] } } },
+            },
+        });
+        if (!membership) return res.status(404).json({ error: 'Membresía no encontrada' });
+        const method = String(req.body.method || 'caja');
+        const titular = membership.profiles[0];
+        let total = 0;
+        for (const bill of membership.maintenance_bills) {
+            const payment = await prisma.payment.create({
+                data: {
+                    membership_id: membership.id, profile_id: titular?.id || null, type: 'mantenimiento',
+                    amount: bill.amount, status: 'completado', method, reference_id: bill.id,
+                    gateway_txn_id: 'caja:' + req.staff.name,
+                },
+            });
+            await prisma.maintenanceBilling.update({ where: { id: bill.id }, data: { status: 'pagado', payment_id: payment.id } });
+            total += Number(bill.amount);
+        }
+        const wasSuspended = membership.status !== 'activa';
+        await prisma.membership.update({ where: { id: membership.id }, data: { status: 'activa' } });
+        if (titular) {
+            await pushNotification(titular.id, 'member',
+                wasSuspended ? 'Membresía reactivada' : 'Pago registrado',
+                wasSuspended ? 'Tu mantenimiento quedó al corriente. ¡Bienvenido de vuelta al club!' : 'Registramos tu pago de mantenimiento en caja. ¡Gracias!',
+                undefined, 'membership_reactivated');
+        }
+        return res.json({ member_number: memberNumber, bills_paid: membership.maintenance_bills.length, amount: total, status: 'activa', reactivated: wasSuspended, by: req.staff.name });
     } catch (err: any) {
         return res.status(500).json({ error: err.message });
     }

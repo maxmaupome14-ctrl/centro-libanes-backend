@@ -35,10 +35,23 @@ export const requireAuth = async (req: any, res: any, next: any) => {
         }
 
         if (profile.membership.status !== 'activa') {
-            return res.status(403).json({
-                error: 'suspension',
-                message: 'Tu membresía está suspendida. Regulariza tu mantenimiento.'
-            });
+            // Suspendido: puede entrar, ver su estado de cuenta, pagar y consultar; no puede reservar, rentar ni invitar.
+            const url = String(req.originalUrl || '');
+            const method = String(req.method || 'GET').toUpperCase();
+            const allowed: Array<{ prefix: string; methods?: string[] }> = [
+                { prefix: '/api/payments' }, { prefix: '/api/profile' }, { prefix: '/api/notifications' },
+                { prefix: '/api/towels/my' }, { prefix: '/api/towels/config' },
+                { prefix: '/api/membership', methods: ['GET'] }, { prefix: '/api/catalog', methods: ['GET'] },
+                { prefix: '/api/events', methods: ['GET'] }, { prefix: '/api/cms', methods: ['GET'] },
+                { prefix: '/api/reservations/user', methods: ['GET'] }, { prefix: '/api/lockers/my', methods: ['GET'] },
+            ];
+            const ok = allowed.some(a => url.startsWith(a.prefix) && (!a.methods || a.methods.includes(method)));
+            if (!ok) {
+                return res.status(403).json({
+                    error: 'suspension',
+                    message: 'Tu membresía está suspendida. Regulariza tu mantenimiento en Estado de cuenta.'
+                });
+            }
         }
 
         let permissions: any = {};

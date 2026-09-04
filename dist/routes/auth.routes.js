@@ -40,12 +40,6 @@ router.post('/select-profile', async (req, res) => {
         });
         if (!membership)
             return res.status(404).json({ error: 'Número de socio no encontrado' });
-        if (membership.status !== 'activa') {
-            return res.status(403).json({
-                error: 'suspension',
-                message: 'Tu membresía está suspendida. Regulariza tu mantenimiento para continuar.'
-            });
-        }
         const profiles = membership.profiles.map(p => ({
             id: p.id,
             first_name: p.first_name,
@@ -54,7 +48,7 @@ router.post('/select-profile', async (req, res) => {
             is_minor: p.is_minor,
             photo_url: p.photo_url
         }));
-        return res.json({ membership_id: membership.id, profiles });
+        return res.json({ membership_id: membership.id, membership_status: membership.status, profiles });
     }
     catch (error) {
         console.error(error);
@@ -73,9 +67,6 @@ router.post('/login', async (req, res) => {
         });
         if (!profile || !profile.is_active) {
             return res.status(404).json({ error: 'Perfil inactivo o no encontrado' });
-        }
-        if (profile.membership.status !== 'activa') {
-            return res.status(403).json({ error: 'suspension', message: 'Tu membresía está suspendida.' });
         }
         if (profile.is_minor) {
             if (!DEV_LOGIN || !pin || pin !== '1234') {
@@ -116,6 +107,7 @@ router.post('/login', async (req, res) => {
             type: 'member',
             tier: profile.membership.tier,
             join_date: profile.membership.join_date,
+            membership_status: profile.membership.status,
             photo_url: profile.photo_url,
         };
         const token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
