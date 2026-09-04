@@ -23,6 +23,7 @@ const guest_routes_1 = __importDefault(require("./routes/guest.routes"));
 const waitlist_routes_1 = __importDefault(require("./routes/waitlist.routes"));
 const rating_routes_1 = __importDefault(require("./routes/rating.routes"));
 const cms_routes_1 = __importDefault(require("./routes/cms.routes"));
+const towel_routes_1 = __importDefault(require("./routes/towel.routes"));
 const jobs_1 = require("./cron/jobs");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -49,6 +50,7 @@ app.use('/api/guests', guest_routes_1.default);
 app.use('/api/waitlist', waitlist_routes_1.default);
 app.use('/api/ratings', rating_routes_1.default);
 app.use('/api/cms', cms_routes_1.default);
+app.use('/api/towels', towel_routes_1.default);
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'centro-libanes-api' });
 });
