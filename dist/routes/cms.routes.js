@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 // ── Featured Items ─────────────────────────────────────────
 // GET /api/cms/featured — public, for frontend HomeView
@@ -31,7 +32,7 @@ router.get('/featured/all', async (_req, res) => {
     }
 });
 // POST /api/cms/featured
-router.post('/featured', async (req, res) => {
+router.post('/featured', auth_1.requireStaffAuth, async (req, res) => {
     const { title, subtitle, gradient_start, gradient_end, icon, link, image_url, display_order } = req.body;
     if (!title)
         return res.status(400).json({ error: 'title es requerido' });
@@ -46,7 +47,7 @@ router.post('/featured', async (req, res) => {
     }
 });
 // PATCH /api/cms/featured/:id
-router.patch('/featured/:id', async (req, res) => {
+router.patch('/featured/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         const item = await prisma_1.default.featuredItem.update({ where: { id: req.params.id }, data: req.body });
         return res.json(item);
@@ -56,7 +57,7 @@ router.patch('/featured/:id', async (req, res) => {
     }
 });
 // DELETE /api/cms/featured/:id
-router.delete('/featured/:id', async (req, res) => {
+router.delete('/featured/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         await prisma_1.default.featuredItem.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });
@@ -90,7 +91,7 @@ router.get('/explore/all', async (_req, res) => {
     }
 });
 // POST /api/cms/explore
-router.post('/explore', async (req, res) => {
+router.post('/explore', auth_1.requireStaffAuth, async (req, res) => {
     const { name, icon, color, background_color, link, display_order } = req.body;
     if (!name)
         return res.status(400).json({ error: 'name es requerido' });
@@ -105,7 +106,7 @@ router.post('/explore', async (req, res) => {
     }
 });
 // PATCH /api/cms/explore/:id
-router.patch('/explore/:id', async (req, res) => {
+router.patch('/explore/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         const item = await prisma_1.default.exploreItem.update({ where: { id: req.params.id }, data: req.body });
         return res.json(item);
@@ -115,7 +116,7 @@ router.patch('/explore/:id', async (req, res) => {
     }
 });
 // DELETE /api/cms/explore/:id
-router.delete('/explore/:id', async (req, res) => {
+router.delete('/explore/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         await prisma_1.default.exploreItem.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });
@@ -158,7 +159,7 @@ router.get('/banners/all', async (_req, res) => {
     }
 });
 // POST /api/cms/banners
-router.post('/banners', async (req, res) => {
+router.post('/banners', auth_1.requireStaffAuth, async (req, res) => {
     const { title, subtitle, background_color, image_url, cta_text, cta_link, placement, start_date, end_date, display_order } = req.body;
     if (!title)
         return res.status(400).json({ error: 'title es requerido' });
@@ -180,7 +181,7 @@ router.post('/banners', async (req, res) => {
     }
 });
 // PATCH /api/cms/banners/:id
-router.patch('/banners/:id', async (req, res) => {
+router.patch('/banners/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         const data = { ...req.body };
         if (data.start_date)
@@ -195,7 +196,7 @@ router.patch('/banners/:id', async (req, res) => {
     }
 });
 // DELETE /api/cms/banners/:id
-router.delete('/banners/:id', async (req, res) => {
+router.delete('/banners/:id', auth_1.requireStaffAuth, async (req, res) => {
     try {
         await prisma_1.default.banner.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });

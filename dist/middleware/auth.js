@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireStaffAuth = exports.requireAuth = void 0;
+exports.requireAdminRole = exports.requireStaffAuth = exports.requireAuth = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const JWT_SECRET = process.env.JWT_SECRET || 'centro-libanes-secret-key-2024';
@@ -92,3 +92,12 @@ const requireStaffAuth = async (req, res, next) => {
     }
 };
 exports.requireStaffAuth = requireStaffAuth;
+/** Solo staff con rol administrador (usar después de requireStaffAuth) */
+const requireAdminRole = (req, res, next) => {
+    if (!req.staff)
+        return res.status(401).json({ error: 'Unauthorized' });
+    if (req.staff.role !== 'administrador')
+        return res.status(403).json({ error: 'Solo administradores' });
+    next();
+};
+exports.requireAdminRole = requireAdminRole;

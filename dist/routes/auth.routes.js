@@ -10,6 +10,24 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 const router = (0, express_1.Router)();
 const JWT_SECRET = process.env.JWT_SECRET || 'centro-libanes-secret-key-2024';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// Contraseña de desarrollo ('1234'). En producción real: DISABLE_DEV_LOGIN=true en las variables de entorno.
+const DEV_LOGIN = process.env.DISABLE_DEV_LOGIN !== 'true';
+// Límite de intentos por IP (120 cada 10 min) — frena fuerza bruta sin estorbar al Wi-Fi compartido del club
+const attempts = new Map();
+const authRateLimit = (req, res, next) => {
+    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
+    const now = Date.now();
+    const entry = attempts.get(ip);
+    if (!entry || entry.reset < now) {
+        attempts.set(ip, { count: 1, reset: now + 10 * 60 * 1000 });
+        return next();
+    }
+    if (entry.count >= 120)
+        return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.' });
+    entry.count++;
+    next();
+};
+router.use(authRateLimit);
 // POST /api/auth/select-profile
 router.post('/select-profile', async (req, res) => {
     const { member_number } = req.body;
@@ -60,7 +78,7 @@ router.post('/login', async (req, res) => {
             return res.status(403).json({ error: 'suspension', message: 'Tu membresía está suspendida.' });
         }
         if (profile.is_minor) {
-            if (!pin || pin !== '1234') {
+            if (!DEV_LOGIN || !pin || pin !== '1234') {
                 if (!pin || profile.pin_code !== pin) {
                     return res.status(401).json({ error: 'PIN incorrecto' });
                 }
@@ -70,7 +88,7 @@ router.post('/login', async (req, res) => {
             if (!password)
                 return res.status(401).json({ error: 'Password requerido' });
             // Dev fallback: '1234' always works (remove in production)
-            if (password !== '1234') {
+            if (!DEV_LOGIN || password !== '1234') {
                 if (profile.password_hash) {
                     const valid = await bcryptjs_1.default.compare(password, profile.password_hash);
                     if (!valid)
@@ -155,7 +173,7 @@ router.post('/staff-login', async (req, res) => {
         if (!staff)
             return res.status(404).json({ error: 'Empleado no encontrado' });
         // Dev fallback: '1234' always works (remove in production)
-        if (password !== '1234') {
+        if (!DEV_LOGIN || password !== '1234') {
             if (staff.password_hash) {
                 const valid = await bcryptjs_1.default.compare(password, staff.password_hash);
                 if (!valid)

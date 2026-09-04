@@ -38,7 +38,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
+// Todo el back-office exige sesión de staff
+router.use(auth_1.requireStaffAuth);
 // GET /api/admin/staff
 router.get('/staff', async (req, res) => {
     try {
@@ -61,7 +64,7 @@ router.get('/staff', async (req, res) => {
     }
 });
 // POST /api/admin/staff
-router.post('/staff', async (req, res) => {
+router.post('/staff', auth_1.requireAdminRole, async (req, res) => {
     const { name, role, employment_type, unit_id, phone, commission_rate, fixed_rent } = req.body;
     if (!name || !role || !employment_type || !unit_id) {
         return res.status(400).json({ error: 'name, role, employment_type y unit_id son requeridos' });
@@ -90,7 +93,7 @@ router.post('/staff', async (req, res) => {
     }
 });
 // PATCH /api/admin/staff/:id
-router.patch('/staff/:id', async (req, res) => {
+router.patch('/staff/:id', auth_1.requireAdminRole, async (req, res) => {
     const { id } = req.params;
     const { name, role, employment_type, phone, is_active, commission_rate, fixed_rent } = req.body;
     try {
@@ -121,7 +124,7 @@ router.patch('/staff/:id', async (req, res) => {
     }
 });
 // DELETE /api/admin/staff/:id
-router.delete('/staff/:id', async (req, res) => {
+router.delete('/staff/:id', auth_1.requireAdminRole, async (req, res) => {
     try {
         await prisma_1.default.staff.update({
             where: { id: req.params.id },
@@ -134,7 +137,7 @@ router.delete('/staff/:id', async (req, res) => {
     }
 });
 // GET /api/admin/staff/:id/services — available services for this staff's unit + assigned ones
-router.get('/staff/:id/services', async (req, res) => {
+router.get('/staff/:id/services', auth_1.requireAdminRole, async (req, res) => {
     try {
         const staff = await prisma_1.default.staff.findUnique({
             where: { id: req.params.id },
@@ -156,7 +159,7 @@ router.get('/staff/:id/services', async (req, res) => {
     }
 });
 // PUT /api/admin/staff/:id/services — replace all service assignments
-router.put('/staff/:id/services', async (req, res) => {
+router.put('/staff/:id/services', auth_1.requireAdminRole, async (req, res) => {
     const { service_ids } = req.body;
     if (!Array.isArray(service_ids)) {
         return res.status(400).json({ error: 'service_ids debe ser un array' });
@@ -202,7 +205,7 @@ router.get('/notifications', async (req, res) => {
     }
 });
 // GET /api/admin/finance/summary — aggregate finance stats
-router.get('/finance/summary', async (_req, res) => {
+router.get('/finance/summary', auth_1.requireAdminRole, async (_req, res) => {
     try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -293,7 +296,7 @@ router.get('/reservations/today', async (_req, res) => {
     }
 });
 // GET /api/admin/lockers/overview — all lockers with rental status
-router.get('/lockers/overview', async (_req, res) => {
+router.get('/lockers/overview', auth_1.requireAdminRole, async (_req, res) => {
     try {
         const lockers = await prisma_1.default.locker.findMany({
             include: {
@@ -324,7 +327,7 @@ router.get('/lockers/overview', async (_req, res) => {
     }
 });
 // GET /api/admin/catalog/stats — catalog item counts
-router.get('/catalog/stats', async (_req, res) => {
+router.get('/catalog/stats', auth_1.requireAdminRole, async (_req, res) => {
     try {
         const [services, resources, activities, enrollments] = await Promise.all([
             prisma_1.default.service.findMany({ include: { unit: { select: { short_name: true } } } }),
@@ -352,7 +355,7 @@ router.get('/catalog/stats', async (_req, res) => {
     }
 });
 // GET /api/admin/commissions — staff commission overview
-router.get('/commissions', async (_req, res) => {
+router.get('/commissions', auth_1.requireAdminRole, async (_req, res) => {
     try {
         // Get all independent/commission-based staff
         const staff = await prisma_1.default.staff.findMany({
@@ -431,7 +434,7 @@ router.get('/commissions', async (_req, res) => {
     }
 });
 // POST /api/admin/commissions/generate — generate settlements for a period
-router.post('/commissions/generate', async (req, res) => {
+router.post('/commissions/generate', auth_1.requireAdminRole, async (req, res) => {
     try {
         const { generateStaffSettlements } = await Promise.resolve().then(() => __importStar(require('../services/settlement.service')));
         const now = new Date();
@@ -483,12 +486,23 @@ router.post('/qr/validate', async (req, res) => {
     if (!code)
         return res.status(400).json({ error: 'Código requerido' });
     try {
-        // Code format: "CL-{member_number}" e.g. "CL-0001"
-        const memberNumber = parseInt(code.replace('CL-', ''), 10);
-        if (isNaN(memberNumber))
-            return res.status(400).json({ error: 'Código inválido' });
+        // Formatos: "CL-MEMBER:{profile_id}" (QR de la credencial digital) o "CL-{member_number}" / "0001"
+        const raw = String(code).trim();
+        let where;
+        if (raw.toUpperCase().startsWith('CL-MEMBER:')) {
+            const prof = await prisma_1.default.memberProfile.findUnique({ where: { id: raw.slice(10).toLowerCase() }, select: { membership_id: true } });
+            if (!prof)
+                return res.status(404).json({ error: 'Socio no encontrado', valid: false });
+            where = { id: prof.membership_id };
+        }
+        else {
+            const memberNumber = parseInt(raw.toUpperCase().replace('CL-', ''), 10);
+            if (isNaN(memberNumber))
+                return res.status(400).json({ error: 'Código inválido' });
+            where = { member_number: memberNumber };
+        }
         const membership = await prisma_1.default.membership.findUnique({
-            where: { member_number: memberNumber },
+            where,
             include: {
                 profiles: {
                     where: { role: 'titular', is_active: true },
