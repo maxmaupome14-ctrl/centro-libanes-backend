@@ -18,6 +18,7 @@ import guestRoutes from './routes/guest.routes';
 import waitlistRoutes from './routes/waitlist.routes';
 import ratingRoutes from './routes/rating.routes';
 import cmsRoutes from './routes/cms.routes';
+import towelRoutes from './routes/towel.routes';
 import { setupCronJobs } from './cron/jobs';
 
 dotenv.config();
@@ -48,6 +49,7 @@ app.use('/api/guests', guestRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/towels', towelRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'centro-libanes-api' });

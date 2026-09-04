@@ -1,0 +1,374 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const prisma_1 = __importDefault(require("../lib/prisma"));
+const auth_1 = require("../middleware/auth");
+const notification_service_1 = require("../services/notification.service");
+const towel_service_1 = require("../services/towel.service");
+const router = (0, express_1.Router)();
+const profileSelect = {
+    id: true, first_name: true, last_name: true, role: true, is_active: true, membership_id: true,
+    membership: { select: { id: true, member_number: true, status: true, tier: true } },
+};
+async function openLoansFor(profile_id) {
+    const loans = await prisma_1.default.towelLoan.findMany({
+        where: { profile_id, status: { in: towel_service_1.OPEN_STATUSES } },
+        include: towel_service_1.loanInclude,
+        orderBy: { issued_at: 'asc' },
+    });
+    return loans.map(l => (0, towel_service_1.serializeLoan)(l));
+}
+async function buildResolveResponse(profile) {
+    const cfg = await (0, towel_service_1.getTowelConfig)();
+    const open_loans = await openLoansFor(profile.id);
+    const open_count = open_loans.reduce((s, l) => s + l.pending, 0);
+    const family = await prisma_1.default.memberProfile.findMany({
+        where: { membership_id: profile.membership_id, is_active: true },
+        select: { id: true, first_name: true, last_name: true, role: true },
+        orderBy: { date_of_birth: 'asc' },
+    });
+    let reason = null;
+    if (profile.membership.status !== 'activa')
+        reason = 'Membresía suspendida — regularizar en caja';
+    else if (open_count >= cfg.max_per_profile)
+        reason = `Ya tiene ${open_count} toalla(s) sin devolver (máximo ${cfg.max_per_profile})`;
+    return {
+        profile: {
+            id: profile.id, first_name: profile.first_name, last_name: profile.last_name, role: profile.role,
+            member_number: profile.membership.member_number, membership_status: profile.membership.status, tier: profile.membership.tier,
+        },
+        family, open_loans, open_count,
+        max: cfg.max_per_profile, can_issue: !reason, reason, config: cfg,
+    };
+}
+// GET /api/towels/config
+router.get('/config', auth_1.requireAuth, async (_req, res) => {
+    try {
+        return res.json(await (0, towel_service_1.getTowelConfig)());
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// GET /api/towels/my — vista del socio: toallas en su poder, historial, cargos
+router.get('/my', auth_1.requireAuth, async (req, res) => {
+    try {
+        if (req.user.type === 'staff')
+            return res.status(403).json({ error: 'Solo socios' });
+        const cfg = await (0, towel_service_1.getTowelConfig)();
+        const loans = await prisma_1.default.towelLoan.findMany({
+            where: { profile_id: req.user.id },
+            include: towel_service_1.loanInclude,
+            orderBy: { issued_at: 'desc' },
+            take: 30,
+        });
+        const all = loans.map(l => (0, towel_service_1.serializeLoan)(l));
+        const familyOpen = await prisma_1.default.towelLoan.findMany({
+            where: { membership_id: req.user.membership_id, profile_id: { not: req.user.id }, status: { in: towel_service_1.OPEN_STATUSES } },
+            include: towel_service_1.loanInclude,
+            orderBy: { issued_at: 'asc' },
+        });
+        const charges = await prisma_1.default.payment.findMany({
+            where: { profile_id: req.user.id, type: 'toalla' },
+            orderBy: { created_at: 'desc' },
+            take: 10,
+        });
+        return res.json({
+            open: all.filter(l => towel_service_1.OPEN_STATUSES.includes(l.status)),
+            history: all.filter(l => !towel_service_1.OPEN_STATUSES.includes(l.status)),
+            family_open: familyOpen.map(l => (0, towel_service_1.serializeLoan)(l)),
+            charges,
+            config: cfg,
+        });
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// POST /api/towels/resolve — vestidores: identificar socio por QR (CL-MEMBER:id), número de socio o nombre
+router.post('/resolve', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const raw = String(req.body.code || '').trim();
+        if (!raw)
+            return res.status(400).json({ error: 'Código requerido' });
+        const upper = raw.toUpperCase();
+        let profile = null;
+        if (upper.startsWith('CL-MEMBER:')) {
+            profile = await prisma_1.default.memberProfile.findUnique({ where: { id: raw.slice(10) }, select: profileSelect });
+        }
+        else {
+            const num = upper.match(/^(?:CL-)?0*(\d+)$/);
+            if (num) {
+                const membership = await prisma_1.default.membership.findUnique({
+                    where: { member_number: parseInt(num[1], 10) },
+                    include: { profiles: { where: { is_active: true }, select: profileSelect } },
+                });
+                if (membership)
+                    profile = membership.profiles.find((p) => p.role === 'titular') || membership.profiles[0] || null;
+            }
+            else {
+                const found = await prisma_1.default.memberProfile.findMany({
+                    where: {
+                        is_active: true,
+                        OR: [
+                            { first_name: { contains: raw, mode: 'insensitive' } },
+                            { last_name: { contains: raw, mode: 'insensitive' } },
+                        ],
+                    },
+                    select: profileSelect,
+                    take: 8,
+                    orderBy: { last_name: 'asc' },
+                });
+                if (found.length === 1)
+                    profile = found[0];
+                else if (found.length > 1) {
+                    return res.json({
+                        candidates: found.map((p) => ({
+                            id: p.id, first_name: p.first_name, last_name: p.last_name, role: p.role,
+                            member_number: p.membership.member_number,
+                        })),
+                    });
+                }
+            }
+        }
+        if (!profile || !profile.is_active)
+            return res.status(404).json({ error: 'No se encontró al socio' });
+        return res.json(await buildResolveResponse(profile));
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// POST /api/towels/issue — vestidores: entregar toallas a un perfil
+router.post('/issue', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const { profile_id } = req.body;
+        const quantity = parseInt(req.body.quantity ?? 1, 10);
+        if (!profile_id || !quantity || quantity < 1)
+            return res.status(400).json({ error: 'profile_id y cantidad válida requeridos' });
+        const profile = await prisma_1.default.memberProfile.findUnique({ where: { id: profile_id }, select: profileSelect });
+        if (!profile || !profile.is_active)
+            return res.status(404).json({ error: 'Socio no encontrado' });
+        if (profile.membership.status !== 'activa')
+            return res.status(403).json({ error: 'Membresía suspendida — no se pueden entregar toallas' });
+        const cfg = await (0, towel_service_1.getTowelConfig)();
+        const open = await openLoansFor(profile.id);
+        const pending = open.reduce((s, l) => s + l.pending, 0);
+        if (pending + quantity > cfg.max_per_profile) {
+            return res.status(400).json({ error: `Máximo ${cfg.max_per_profile} toallas por persona (tiene ${pending} sin devolver)` });
+        }
+        const unit_id = req.staff.unit_id;
+        const stock = await (0, towel_service_1.ensureStock)(unit_id);
+        const tracked = stock.total > 0;
+        if (tracked && stock.clean < quantity) {
+            return res.status(400).json({ error: `Solo quedan ${stock.clean} toallas limpias en ${req.staff.unit?.short_name || 'esta sede'}` });
+        }
+        const now = new Date();
+        const loan = await prisma_1.default.towelLoan.create({
+            data: {
+                unit_id, profile_id: profile.id, membership_id: profile.membership_id,
+                issued_by_id: req.staff.id, quantity, due_at: (0, towel_service_1.computeDueAt)(now, cfg.cutoff_hour),
+            },
+            include: towel_service_1.loanInclude,
+        });
+        await (0, towel_service_1.moveStock)(unit_id, { clean: -quantity, in_use: quantity });
+        await (0, notification_service_1.pushNotification)(profile.id, 'member', 'Toallas entregadas', `Recibiste ${quantity} toalla(s) en ${req.staff.unit?.short_name || 'el club'}. Devuélvelas antes de las ${cfg.cutoff_hour} hrs.`, JSON.stringify({ loan_id: loan.id }), 'towel_issued');
+        return res.status(201).json((0, towel_service_1.serializeLoan)(loan));
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// POST /api/towels/:id/return — vestidores: recibir toallas (todas o parciales)
+router.post('/:id/return', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const loan = await prisma_1.default.towelLoan.findUnique({ where: { id: req.params.id } });
+        if (!loan)
+            return res.status(404).json({ error: 'Préstamo no encontrado' });
+        if (loan.status === 'cobrada')
+            return res.status(400).json({ error: 'Este préstamo ya fue cobrado; para revertirlo contacta administración' });
+        const pending = loan.quantity - loan.returned_qty;
+        if (pending <= 0)
+            return res.status(400).json({ error: 'No hay toallas pendientes' });
+        const requested = parseInt(req.body.quantity ?? pending, 10);
+        const qty = Math.min(Math.max(1, isNaN(requested) ? pending : requested), pending);
+        const returned_qty = loan.returned_qty + qty;
+        const complete = returned_qty >= loan.quantity;
+        const updated = await prisma_1.default.towelLoan.update({
+            where: { id: loan.id },
+            data: {
+                returned_qty,
+                status: complete ? 'devuelta' : loan.status,
+                returned_at: complete ? new Date() : null,
+                received_by_id: req.staff.id,
+            },
+            include: towel_service_1.loanInclude,
+        });
+        await (0, towel_service_1.moveStock)(loan.unit_id, { in_use: -qty, laundry: qty });
+        if (complete) {
+            await (0, notification_service_1.pushNotification)(loan.profile_id, 'member', 'Toallas devueltas', `Recibimos tus ${loan.quantity} toalla(s). ¡Gracias!`, JSON.stringify({ loan_id: loan.id }), 'towel_returned');
+        }
+        return res.json((0, towel_service_1.serializeLoan)(updated));
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// GET /api/towels/open — préstamos sin devolver (sede del staff; ?all=1 para todas)
+router.get('/open', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const where = { status: { in: towel_service_1.OPEN_STATUSES } };
+        if (!req.query.all)
+            where.unit_id = req.staff.unit_id;
+        const loans = await prisma_1.default.towelLoan.findMany({ where, include: towel_service_1.loanInclude, orderBy: { issued_at: 'asc' } });
+        return res.json(loans.map(l => (0, towel_service_1.serializeLoan)(l)));
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// GET /api/towels/stock — inventario por sede
+router.get('/stock', auth_1.requireStaffAuth, async (_req, res) => {
+    try {
+        const units = await prisma_1.default.unit.findMany({
+            where: { is_active: true },
+            select: { id: true, short_name: true },
+            orderBy: { short_name: 'asc' },
+        });
+        const rows = [];
+        for (const u of units) {
+            const s = await (0, towel_service_1.ensureStock)(u.id);
+            rows.push({ ...s, unit: u });
+        }
+        return res.json(rows);
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// PATCH /api/towels/stock/:unitId — ajustes de inventario
+//   { action: 'laundry_to_clean', quantity }  → regresan lavadas (cualquier staff de la sede)
+//   { action: 'add_new', quantity }           → compra de toallas nuevas (admin)
+//   { action: 'set', values: {...} }          → corrección manual (admin)
+router.patch('/stock/:unitId', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const { action } = req.body;
+        const quantity = parseInt(req.body.quantity ?? 0, 10);
+        const unit_id = req.params.unitId;
+        const isAdmin = req.staff.role === 'administrador';
+        if (!isAdmin && unit_id !== req.staff.unit_id)
+            return res.status(403).json({ error: 'Solo puedes ajustar el stock de tu sede' });
+        let stock;
+        if (action === 'laundry_to_clean') {
+            if (!quantity || quantity < 1)
+                return res.status(400).json({ error: 'Cantidad inválida' });
+            const cur = await (0, towel_service_1.ensureStock)(unit_id);
+            const q = Math.min(quantity, cur.laundry);
+            if (q < 1)
+                return res.status(400).json({ error: 'No hay toallas en lavandería' });
+            stock = await (0, towel_service_1.moveStock)(unit_id, { laundry: -q, clean: q });
+        }
+        else if (action === 'add_new') {
+            if (!isAdmin)
+                return res.status(403).json({ error: 'Solo administradores' });
+            if (!quantity || quantity < 1)
+                return res.status(400).json({ error: 'Cantidad inválida' });
+            stock = await (0, towel_service_1.moveStock)(unit_id, { total: quantity, clean: quantity });
+        }
+        else if (action === 'set') {
+            if (!isAdmin)
+                return res.status(403).json({ error: 'Solo administradores' });
+            const v = req.body.values || {};
+            const cur = await (0, towel_service_1.ensureStock)(unit_id);
+            const num = (x, fallback) => { const n = parseInt(x, 10); return isNaN(n) ? fallback : Math.max(0, n); };
+            stock = await prisma_1.default.towelStock.update({
+                where: { unit_id },
+                data: {
+                    total: num(v.total, cur.total), clean: num(v.clean, cur.clean), in_use: num(v.in_use, cur.in_use),
+                    laundry: num(v.laundry, cur.laundry), lost: num(v.lost, cur.lost),
+                },
+            });
+        }
+        else {
+            return res.status(400).json({ error: 'Acción inválida' });
+        }
+        return res.json(stock);
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// GET /api/towels/summary — tablero del día (sede del staff; ?all=1 para todo el club)
+router.get('/summary', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        const all = !!req.query.all;
+        const unit_id = req.staff.unit_id;
+        const unitWhere = all ? {} : { unit_id };
+        const now = new Date();
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const [issued_today, returned_today, openLoans, cfg, chargedLoans] = await Promise.all([
+            prisma_1.default.towelLoan.count({ where: { ...unitWhere, issued_at: { gte: start } } }),
+            prisma_1.default.towelLoan.count({ where: { ...unitWhere, returned_at: { gte: start } } }),
+            prisma_1.default.towelLoan.findMany({
+                where: { ...unitWhere, status: { in: towel_service_1.OPEN_STATUSES } },
+                select: { quantity: true, returned_qty: true, status: true, due_at: true },
+            }),
+            (0, towel_service_1.getTowelConfig)(),
+            prisma_1.default.towelLoan.findMany({
+                where: { ...unitWhere, status: 'cobrada', charged_at: { gte: monthStart } },
+                select: { quantity: true, returned_qty: true, payment: { select: { amount: true } } },
+            }),
+        ]);
+        const open = openLoans.reduce((s, l) => s + (l.quantity - l.returned_qty), 0);
+        const overdue = openLoans
+            .filter(l => l.status === 'vencida' || new Date(l.due_at) < now)
+            .reduce((s, l) => s + (l.quantity - l.returned_qty), 0);
+        const charged_month_count = chargedLoans.reduce((s, l) => s + (l.quantity - l.returned_qty), 0);
+        const charged_month_amount = chargedLoans.reduce((s, l) => s + Number(l.payment?.amount || 0), 0);
+        let stock;
+        let unit = null;
+        if (all) {
+            const rows = await prisma_1.default.towelStock.findMany();
+            stock = rows.reduce((acc, r) => ({ total: acc.total + r.total, clean: acc.clean + r.clean, in_use: acc.in_use + r.in_use, laundry: acc.laundry + r.laundry, lost: acc.lost + r.lost }), { total: 0, clean: 0, in_use: 0, laundry: 0, lost: 0 });
+        }
+        else {
+            stock = await (0, towel_service_1.ensureStock)(unit_id);
+            unit = await prisma_1.default.unit.findUnique({ where: { id: unit_id }, select: { id: true, short_name: true } });
+        }
+        return res.json({
+            unit, stock,
+            today: { issued: issued_today, returned: returned_today },
+            open, overdue, charged_month_count, charged_month_amount,
+            config: cfg,
+        });
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+// POST /api/towels/:id/charge — cobrar toallas no devueltas al estado de cuenta
+router.post('/:id/charge', auth_1.requireStaffAuth, async (req, res) => {
+    try {
+        return res.json(await (0, towel_service_1.chargeLoan)(req.params.id, req.staff.id));
+    }
+    catch (e) {
+        return res.status(400).json({ error: e.message });
+    }
+});
+// POST /api/towels/process-overdue — admin: correr el proceso de vencidas/cobros ahora
+router.post('/process-overdue', auth_1.requireStaffAuth, async (req, res) => {
+    if (req.staff.role !== 'administrador')
+        return res.status(403).json({ error: 'Solo administradores' });
+    try {
+        return res.json(await (0, towel_service_1.processTowelOverdues)());
+    }
+    catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+exports.default = router;
