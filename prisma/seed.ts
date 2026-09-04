@@ -94,6 +94,10 @@ async function main() {
             settlement_frequency: 'biweekly',
             beneficiary_max_age: 25,
             club_hours: '06:00-22:00',
+            towel_fee_lost: 150,
+            towel_max_per_profile: 2,
+            towel_cutoff_hour: '22:00',
+            towel_grace_days: 1,
             peak_hours: 'L-V 18:00-21:00, S 08:00-13:00',
         }
     });
@@ -284,6 +288,8 @@ async function main() {
         { name: 'Alejandra Ruiz', role: 'instructor_fitness', employment_type: 'nomina', unit_id: fredy.id, schedule_template: weekdaySchedule('06:00', '14:00') },
         { name: 'Iván Castillo', role: 'instructor_fitness', employment_type: 'nomina', unit_id: fredy.id, schedule_template: weekdaySchedule('14:00', '22:00') },
         // Admin
+        { name: 'Toallas Hermes', role: 'vestidores', employment_type: 'nomina', unit_id: hermes.id, schedule_template: fullWeekSchedule('06:00', '22:00') },
+        { name: 'Toallas Atala', role: 'vestidores', employment_type: 'nomina', unit_id: fredy.id, schedule_template: fullWeekSchedule('06:00', '22:00') },
         { name: 'Admin Centro', role: 'administrador', employment_type: 'nomina', unit_id: hermes.id, schedule_template: weekdaySchedule('08:00', '17:00') },
     ];
 
@@ -494,6 +500,13 @@ async function main() {
         });
         console.log('  ✓ Sample reservation: Padel tomorrow 10-11am');
     }
+
+    // ══════════════════════════════════════════
+    // 11. TOWEL STOCK (control de toallas)
+    // ══════════════════════════════════════════
+    await prisma.towelStock.create({ data: { unit_id: hermes.id, total: 300, clean: 240, in_use: 0, laundry: 60, lost: 0 } });
+    await prisma.towelStock.create({ data: { unit_id: fredy.id, total: 200, clean: 160, in_use: 0, laundry: 40, lost: 0 } });
+    console.log('  ✓ Towel stock: Hermes 300 · Fredy Atala 200');
 
     console.log('\n🎉 Seed completed successfully!');
 }

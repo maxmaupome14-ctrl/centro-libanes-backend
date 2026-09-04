@@ -92,6 +92,8 @@ model Unit {
   resources    Resource[]
   reservations Reservation[] // for units that hold reservations
   tournaments  Tournament[]
+  towel_loans  TowelLoan[]
+  towel_stock  TowelStock?
 }
 
 model SystemConfig {
@@ -111,6 +113,10 @@ model SystemConfig {
   max_courts_per_type_per_week Int    @default(2)
   club_hours                  String?
   peak_hours                  String?
+  towel_fee_lost              Decimal @default(150)
+  towel_max_per_profile       Int     @default(2)
+  towel_cutoff_hour           String  @default("22:00")
+  towel_grace_days            Int     @default(1)
 }
 
 model Membership {
@@ -131,6 +137,7 @@ model Membership {
   reservations      Reservation[]
   enrollments       ActivityEnrollment[]
   waitlist_entries  Waitlist[]
+  towel_loans       TowelLoan[]
 }
 
 model MemberProfile {
@@ -169,6 +176,7 @@ model MemberProfile {
   guest_passes        GuestPass[]
   waitlist_entries    Waitlist[]
   ratings             Rating[]
+  towel_loans         TowelLoan[]
 }
 
 model Staff {
@@ -192,6 +200,8 @@ model Staff {
   settlements  StaffSettlement[]
   overrides    StaffScheduleOverride[]
   activities   Activity[]              @relation("ActivityInstructor")
+  towels_issued   TowelLoan[] @relation("TowelIssuedBy")
+  towels_received TowelLoan[] @relation("TowelReceivedBy")
 }
 
 model Service {
@@ -334,6 +344,7 @@ model Payment {
   locker_rentals    LockerRental[]       @relation("LockerPayment")
   maintenance_bills MaintenanceBilling[] @relation("MaintenancePayment")
   enrollments       ActivityEnrollment[] @relation("EnrollmentPayment")
+  towel_loans       TowelLoan[]          @relation("TowelPayment")
 }
 
 model MaintenanceBilling {
@@ -672,4 +683,51 @@ model Banner {
   is_active        Boolean   @default(true)
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------
+// CONTROL DE TOALLAS
+// ---------------------------------------------------------
+
+model TowelStock {
+  id         String   @id @default(uuid())
+  unit_id    String   @unique
+  total      Int      @default(0)
+  clean      Int      @default(0)
+  in_use     Int      @default(0)
+  laundry    Int      @default(0)
+  lost       Int      @default(0)
+  updated_at DateTime @updatedAt
+
+  unit Unit @relation(fields: [unit_id], references: [id])
+}
+
+model TowelLoan {
+  id             String    @id @default(uuid())
+  unit_id        String
+  profile_id     String
+  membership_id  String
+  issued_by_id   String
+  received_by_id String?
+  quantity       Int       @default(1)
+  returned_qty   Int       @default(0)
+  status         String    @default("prestada") // prestada, devuelta, vencida, cobrada
+  issued_at      DateTime  @default(now())
+  due_at         DateTime
+  returned_at    DateTime?
+  charged_at     DateTime?
+  payment_id     String?
+  notes          String?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  unit        Unit          @relation(fields: [unit_id], references: [id])
+  profile     MemberProfile @relation(fields: [profile_id], references: [id])
+  membership  Membership    @relation(fields: [membership_id], references: [id])
+  issued_by   Staff         @relation("TowelIssuedBy", fields: [issued_by_id], references: [id])
+  received_by Staff?        @relation("TowelReceivedBy", fields: [received_by_id], references: [id])
+  payment     Payment?      @relation("TowelPayment", fields: [payment_id], references: [id])
+
+  @@index([profile_id, status])
+  @@index([unit_id, status])
 }

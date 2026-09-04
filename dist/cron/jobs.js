@@ -9,6 +9,7 @@ const date_fns_1 = require("date-fns");
 const locker_service_1 = require("../services/locker.service");
 const settlement_service_1 = require("../services/settlement.service");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const towel_service_1 = require("../services/towel.service");
 /**
  * Get current and next quarter strings dynamically
  */
@@ -28,6 +29,7 @@ function getQuarterStrings() {
 }
 function setupCronJobs() {
     console.log('[Cron] Initializing scheduled tasks...');
+    (0, towel_service_1.setupTowelCrons)();
     // Daily 00:05 - check overdue maintenance bills
     node_cron_1.default.schedule('5 0 * * *', async () => {
         console.log('[Cron] Checking overdue maintenance...');

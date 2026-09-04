@@ -359,7 +359,7 @@ router.post('/:id/cancel', auth_1.requireAuth, async (req, res) => {
             data: {
                 status: 'cancelada',
                 cancelled_at: new Date(),
-                cancellation_reason: req.body.reason || 'Cancelada por el usuario',
+                cancellation_reason: req.body?.reason || 'Cancelada por el usuario',
             },
         });
         return res.json({

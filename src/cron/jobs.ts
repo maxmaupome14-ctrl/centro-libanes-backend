@@ -3,6 +3,7 @@ import { addMinutes } from 'date-fns';
 import { processLockerRenewals } from '../services/locker.service';
 import { generateStaffSettlements } from '../services/settlement.service';
 import prisma from '../lib/prisma';
+import { setupTowelCrons } from '../services/towel.service';
 
 /**
  * Get current and next quarter strings dynamically
@@ -25,6 +26,7 @@ function getQuarterStrings() {
 
 export function setupCronJobs() {
     console.log('[Cron] Initializing scheduled tasks...');
+    setupTowelCrons();
 
     // Daily 00:05 - check overdue maintenance bills
     cron.schedule('5 0 * * *', async () => {
