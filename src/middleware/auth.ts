@@ -90,3 +90,10 @@ export const requireStaffAuth = async (req: any, res: any, next: any) => {
         return res.status(500).json({ error: 'Auth error' });
     }
 };
+
+/** Solo staff con rol administrador (usar después de requireStaffAuth) */
+export const requireAdminRole = (req: any, res: any, next: any) => {
+    if (!req.staff) return res.status(401).json({ error: 'Unauthorized' });
+    if (req.staff.role !== 'administrador') return res.status(403).json({ error: 'Solo administradores' });
+    next();
+};

@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { requireStaffAuth } from '../middleware/auth';
+import { requireStaffAuth, requireAdminRole } from '../middleware/auth';
 
 const router = Router();
+
+// Todo el back-office exige sesión de staff
+router.use(requireStaffAuth);
 
 // GET /api/admin/staff
 router.get('/staff', async (req: any, res: any) => {
@@ -26,7 +29,7 @@ router.get('/staff', async (req: any, res: any) => {
 });
 
 // POST /api/admin/staff
-router.post('/staff', async (req: any, res: any) => {
+router.post('/staff', requireAdminRole, async (req: any, res: any) => {
     const { name, role, employment_type, unit_id, phone, commission_rate, fixed_rent } = req.body;
 
     if (!name || !role || !employment_type || !unit_id) {
@@ -58,7 +61,7 @@ router.post('/staff', async (req: any, res: any) => {
 });
 
 // PATCH /api/admin/staff/:id
-router.patch('/staff/:id', async (req: any, res: any) => {
+router.patch('/staff/:id', requireAdminRole, async (req: any, res: any) => {
     const { id } = req.params;
     const { name, role, employment_type, phone, is_active, commission_rate, fixed_rent } = req.body;
 
@@ -85,7 +88,7 @@ router.patch('/staff/:id', async (req: any, res: any) => {
 });
 
 // DELETE /api/admin/staff/:id
-router.delete('/staff/:id', async (req: any, res: any) => {
+router.delete('/staff/:id', requireAdminRole, async (req: any, res: any) => {
     try {
         await prisma.staff.update({
             where: { id: req.params.id },
@@ -98,7 +101,7 @@ router.delete('/staff/:id', async (req: any, res: any) => {
 });
 
 // GET /api/admin/staff/:id/services — available services for this staff's unit + assigned ones
-router.get('/staff/:id/services', async (req: any, res: any) => {
+router.get('/staff/:id/services', requireAdminRole, async (req: any, res: any) => {
     try {
         const staff = await prisma.staff.findUnique({
             where: { id: req.params.id },
@@ -122,7 +125,7 @@ router.get('/staff/:id/services', async (req: any, res: any) => {
 });
 
 // PUT /api/admin/staff/:id/services — replace all service assignments
-router.put('/staff/:id/services', async (req: any, res: any) => {
+router.put('/staff/:id/services', requireAdminRole, async (req: any, res: any) => {
     const { service_ids } = req.body;
     if (!Array.isArray(service_ids)) {
         return res.status(400).json({ error: 'service_ids debe ser un array' });
@@ -172,7 +175,7 @@ router.get('/notifications', async (req: any, res: any) => {
 });
 
 // GET /api/admin/finance/summary — aggregate finance stats
-router.get('/finance/summary', async (_req: any, res: any) => {
+router.get('/finance/summary', requireAdminRole, async (_req: any, res: any) => {
     try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -274,7 +277,7 @@ router.get('/reservations/today', async (_req: any, res: any) => {
 });
 
 // GET /api/admin/lockers/overview — all lockers with rental status
-router.get('/lockers/overview', async (_req: any, res: any) => {
+router.get('/lockers/overview', requireAdminRole, async (_req: any, res: any) => {
     try {
         const lockers = await prisma.locker.findMany({
             include: {
@@ -307,7 +310,7 @@ router.get('/lockers/overview', async (_req: any, res: any) => {
 });
 
 // GET /api/admin/catalog/stats — catalog item counts
-router.get('/catalog/stats', async (_req: any, res: any) => {
+router.get('/catalog/stats', requireAdminRole, async (_req: any, res: any) => {
     try {
         const [services, resources, activities, enrollments] = await Promise.all([
             prisma.service.findMany({ include: { unit: { select: { short_name: true } } } }),
@@ -336,7 +339,7 @@ router.get('/catalog/stats', async (_req: any, res: any) => {
 });
 
 // GET /api/admin/commissions — staff commission overview
-router.get('/commissions', async (_req: any, res: any) => {
+router.get('/commissions', requireAdminRole, async (_req: any, res: any) => {
     try {
         // Get all independent/commission-based staff
         const staff = await prisma.staff.findMany({
@@ -420,7 +423,7 @@ router.get('/commissions', async (_req: any, res: any) => {
 });
 
 // POST /api/admin/commissions/generate — generate settlements for a period
-router.post('/commissions/generate', async (req: any, res: any) => {
+router.post('/commissions/generate', requireAdminRole, async (req: any, res: any) => {
     try {
         const { generateStaffSettlements } = await import('../services/settlement.service');
         const now = new Date();
@@ -475,12 +478,21 @@ router.post('/qr/validate', async (req: any, res: any) => {
     if (!code) return res.status(400).json({ error: 'Código requerido' });
 
     try {
-        // Code format: "CL-{member_number}" e.g. "CL-0001"
-        const memberNumber = parseInt(code.replace('CL-', ''), 10);
-        if (isNaN(memberNumber)) return res.status(400).json({ error: 'Código inválido' });
+        // Formatos: "CL-MEMBER:{profile_id}" (QR de la credencial digital) o "CL-{member_number}" / "0001"
+        const raw = String(code).trim();
+        let where: any;
+        if (raw.toUpperCase().startsWith('CL-MEMBER:')) {
+            const prof = await prisma.memberProfile.findUnique({ where: { id: raw.slice(10).toLowerCase() }, select: { membership_id: true } });
+            if (!prof) return res.status(404).json({ error: 'Socio no encontrado', valid: false });
+            where = { id: prof.membership_id };
+        } else {
+            const memberNumber = parseInt(raw.toUpperCase().replace('CL-', ''), 10);
+            if (isNaN(memberNumber)) return res.status(400).json({ error: 'Código inválido' });
+            where = { member_number: memberNumber };
+        }
 
         const membership = await prisma.membership.findUnique({
-            where: { member_number: memberNumber },
+            where,
             include: {
                 profiles: {
                     where: { role: 'titular', is_active: true },

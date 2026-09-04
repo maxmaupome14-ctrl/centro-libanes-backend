@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
+import { requireStaffAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -29,7 +30,7 @@ router.get('/featured/all', async (_req: any, res: any) => {
 });
 
 // POST /api/cms/featured
-router.post('/featured', async (req: any, res: any) => {
+router.post('/featured', requireStaffAuth, async (req: any, res: any) => {
     const { title, subtitle, gradient_start, gradient_end, icon, link, image_url, display_order } = req.body;
     if (!title) return res.status(400).json({ error: 'title es requerido' });
     try {
@@ -43,7 +44,7 @@ router.post('/featured', async (req: any, res: any) => {
 });
 
 // PATCH /api/cms/featured/:id
-router.patch('/featured/:id', async (req: any, res: any) => {
+router.patch('/featured/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         const item = await prisma.featuredItem.update({ where: { id: req.params.id }, data: req.body });
         return res.json(item);
@@ -53,7 +54,7 @@ router.patch('/featured/:id', async (req: any, res: any) => {
 });
 
 // DELETE /api/cms/featured/:id
-router.delete('/featured/:id', async (req: any, res: any) => {
+router.delete('/featured/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         await prisma.featuredItem.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });
@@ -88,7 +89,7 @@ router.get('/explore/all', async (_req: any, res: any) => {
 });
 
 // POST /api/cms/explore
-router.post('/explore', async (req: any, res: any) => {
+router.post('/explore', requireStaffAuth, async (req: any, res: any) => {
     const { name, icon, color, background_color, link, display_order } = req.body;
     if (!name) return res.status(400).json({ error: 'name es requerido' });
     try {
@@ -102,7 +103,7 @@ router.post('/explore', async (req: any, res: any) => {
 });
 
 // PATCH /api/cms/explore/:id
-router.patch('/explore/:id', async (req: any, res: any) => {
+router.patch('/explore/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         const item = await prisma.exploreItem.update({ where: { id: req.params.id }, data: req.body });
         return res.json(item);
@@ -112,7 +113,7 @@ router.patch('/explore/:id', async (req: any, res: any) => {
 });
 
 // DELETE /api/cms/explore/:id
-router.delete('/explore/:id', async (req: any, res: any) => {
+router.delete('/explore/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         await prisma.exploreItem.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });
@@ -156,7 +157,7 @@ router.get('/banners/all', async (_req: any, res: any) => {
 });
 
 // POST /api/cms/banners
-router.post('/banners', async (req: any, res: any) => {
+router.post('/banners', requireStaffAuth, async (req: any, res: any) => {
     const { title, subtitle, background_color, image_url, cta_text, cta_link, placement, start_date, end_date, display_order } = req.body;
     if (!title) return res.status(400).json({ error: 'title es requerido' });
     try {
@@ -177,7 +178,7 @@ router.post('/banners', async (req: any, res: any) => {
 });
 
 // PATCH /api/cms/banners/:id
-router.patch('/banners/:id', async (req: any, res: any) => {
+router.patch('/banners/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         const data = { ...req.body };
         if (data.start_date) data.start_date = new Date(data.start_date);
@@ -190,7 +191,7 @@ router.patch('/banners/:id', async (req: any, res: any) => {
 });
 
 // DELETE /api/cms/banners/:id
-router.delete('/banners/:id', async (req: any, res: any) => {
+router.delete('/banners/:id', requireStaffAuth, async (req: any, res: any) => {
     try {
         await prisma.banner.delete({ where: { id: req.params.id } });
         return res.json({ message: 'Eliminado' });
